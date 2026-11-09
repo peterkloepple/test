@@ -1,4 +1,5 @@
-# PA Rechnung - iPhone/iPad-App bauen OHNE eigenen Mac  v1.2.2
+# PA Rechnung - iPhone/iPad-App bauen OHNE eigenen Mac  v1.2.3
+# v1.2.3: Intel-Mac (macos-15-intel) - bei den Apple-Silicon-Macs hat GitHub gerade Engpaesse
 # v1.2.2: macos-15 (macos-26 lange ohne freien Mac) - Xcode 26 wird dort ausgewaehlt
 # v1.2.1: Xcode-Protokoll bei Fehlern kurz ausgeben
 # v1.2.0: Mac mit macOS 26 + neuestem Xcode 26 (Briefcase verlangt Xcode 26, vorher nur 16.4)
@@ -20,7 +21,7 @@ concurrency:
 
 jobs:
   ipa:
-    runs-on: macos-15
+    runs-on: macos-15-intel
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
