@@ -1,4 +1,5 @@
-# PA Rechnung - iPhone/iPad-App bauen OHNE eigenen Mac  v1.2.6
+# PA Rechnung - iPhone/iPad-App bauen OHNE eigenen Mac  v1.2.7
+# v1.2.7: Python-Bibliotheken ad-hoc signieren (EXPANDED_CODE_SIGN_IDENTITY=-), Sideloadly signiert spaeter neu
 # v1.2.6: reportlab + Pillow + charset-normalizer fest fuer iPhone arm64 (geht auch auf dem Intel-Mac)
 # v1.2.5: Intel-Mac (sofort frei) + Apple-Silicon parallel; Pillow wird fest fuer iPhone arm64 eingebaut
 # v1.2.4: zwei Apple-Silicon-Macs parallel (macos-26 und macos-14) - wer zuerst frei ist, liefert; Intel geht nicht (keine iPhone-Pakete)
@@ -64,7 +65,7 @@ jobs:
           echo "Projekt: $PROJ  Schema: $SCHEME"
           xcodebuild -project "$PROJ" -scheme "$SCHEME" -configuration Release \
             -sdk iphoneos -destination "generic/platform=iOS" -derivedDataPath dd \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build > xcode.log 2>&1 && RC=0 || RC=$?
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" EXPANDED_CODE_SIGN_IDENTITY=- build > xcode.log 2>&1 && RC=0 || RC=$?
           echo "xcodebuild Ergebnis: $RC"
           grep -nE "error:|BUILD FAILED|Command .* failed|PhaseScriptExecution" xcode.log | head -60 || true
           if [ "$RC" != "0" ]; then echo "----- letzte Zeilen -----"; tail -100 xcode.log; exit $RC; fi
