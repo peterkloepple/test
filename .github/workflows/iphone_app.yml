@@ -1,4 +1,5 @@
-# PA Rechnung - iPhone/iPad-App bauen OHNE eigenen Mac  v1.2.3
+# PA Rechnung - iPhone/iPad-App bauen OHNE eigenen Mac  v1.2.4
+# v1.2.4: zwei Apple-Silicon-Macs parallel (macos-26 und macos-14) - wer zuerst frei ist, liefert; Intel geht nicht (keine iPhone-Pakete)
 # v1.2.3: Intel-Mac (macos-15-intel) - bei den Apple-Silicon-Macs hat GitHub gerade Engpaesse
 # v1.2.2: macos-15 (macos-26 lange ohne freien Mac) - Xcode 26 wird dort ausgewaehlt
 # v1.2.1: Xcode-Protokoll bei Fehlern kurz ausgeben
@@ -21,7 +22,11 @@ concurrency:
 
 jobs:
   ipa:
-    runs-on: macos-15-intel
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-26, macos-14]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
@@ -60,6 +65,6 @@ jobs:
           ls -la PA_Rechnung_unsigniert.ipa
       - uses: actions/upload-artifact@v4
         with:
-          name: PA_Rechnung_iPhone
+          name: PA_Rechnung_iPhone_${{ matrix.os }}
           path: PARechnung_iOS/PA_Rechnung_unsigniert.ipa
           retention-days: 30
