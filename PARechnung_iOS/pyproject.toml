@@ -1,0 +1,55 @@
+# PA Rechnung - iPhone/iPad-App  v1.1.0 (Programm v3.7.0)
+# BeeWare Briefcase-Projekt: das komplette Programm laeuft offline auf dem Geraet (eigene Datenbank),
+# Abgleich mit dem PC ueber "Abgleich" im Programm.
+# Bauen ohne Mac: GitHub Actions (.github/workflows/iphone_app.yml), mit Mac: ./build_ios.sh  (Handbuch Kapitel 8)
+# Autor: T. Pfeiffer
+
+[tool.briefcase]
+project_name = "PA Rechnung"
+bundle = "de.tpfeiffer"
+version = "3.7.0"
+url = "https://localhost/"
+license.text = "Privat - T. Pfeiffer"
+author = "T. Pfeiffer"
+author_email = "info@localhost"
+
+[tool.briefcase.app.parechnung]
+formal_name = "PA Rechnung"
+description = "Rechnungen, Kunden, Projekte, Belege - offline, mit Abgleich zum PC"
+long_description = "Pfeiffer-Audio Rechnung als iPhone/iPad-App."
+sources = ["src/parechnung"]
+icon = "src/parechnung/resources/appicon"
+requires = [
+    "reportlab>=4.0",
+    "pypdf>=4.0",
+    "pillow>=10.0",
+    "openpyxl>=3.1",
+    "xlrd>=2.0",
+    "olefile>=0.47",
+    "cryptography>=42",
+    "tzdata>=2024.1",
+]
+
+[tool.briefcase.app.parechnung.iOS]
+requires = [
+    "toga-iOS~=0.5.0",
+    "std-nslog~=1.0.3",
+]
+# iOS 15 or newer
+min_os_version = "15.0"
+
+[tool.briefcase.app.parechnung.iOS.info]
+NSCameraUsageDescription = "Belege und Dokumente mit der Kamera fotografieren."
+NSPhotoLibraryUsageDescription = "Fotos als Beleg übernehmen."
+NSPhotoLibraryAddUsageDescription = "Rechnungen und Belege in Fotos sichern."
+NSLocalNetworkUsageDescription = "Abgleich mit PA Rechnung auf deinem PC im Heimnetz."
+NSMicrophoneUsageDescription = "Spracheingabe im Programm."
+ITSAppUsesNonExemptEncryption = false
+UIFileSharingEnabled = true
+LSSupportsOpeningDocumentsInPlace = true
+UIRequiresFullScreen = false
+UISupportedInterfaceOrientations = ["UIInterfaceOrientationPortrait", "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight"]
+"UISupportedInterfaceOrientations~ipad" = ["UIInterfaceOrientationPortrait", "UIInterfaceOrientationPortraitUpsideDown", "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight"]
+# the PC is reached by plain http in the home network / VPN (address set by you under "Abgleich")
+NSAppTransportSecurity.NSAllowsLocalNetworking = true
+NSAppTransportSecurity.NSAllowsArbitraryLoads = true

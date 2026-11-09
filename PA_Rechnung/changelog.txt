@@ -1,0 +1,665 @@
+v3.7.0 - iPhone/iPad-App und Abgleich PC <-> Mobilgeraet
+- Neues Modul m58_abgleich + Seite "Abgleich" (System): das ganze Programm laeuft offline auf iPhone/iPad (oder einem
+  zweiten PC) mit eigener Datenbank und gleicht sich mit dem PC ab - in beide Richtungen.
+  * Koppeln: PC zeigt einen Code (Schnittstelle "im Heimnetz erreichbar"), das Geraet traegt Adresse(n) + Code ein und
+    holt beim Koppeln einmal alle Daten und Dateien vom PC (ersetzt den bisherigen Stand des Geraets).
+  * Verbindung einstellbar: mehrere PC-Adressen (z. B. WLAN und VPN), werden der Reihe nach probiert.
+  * Abgleich: Knopf "Jetzt abgleichen", beim Programmstart und automatisch (5/15/60/240 Minuten oder nur per Knopf).
+    Uebertragen werden nur Aenderungen seit dem letzten Abgleich (auch Loeschungen), Dateien (Belege, Rechnungs-PDFs,
+    Projektdateien) wahlweise mit - neuere Datei gewinnt, Dateien werden nie geloescht.
+  * Konflikt (derselbe Datensatz auf beiden Geraeten geaendert): die neuere Fassung gilt, die andere wird auf dem PC
+    unter "Konflikte" aufgehoben (Ansehen mit Feldvergleich, Erledigt). Festgeschriebene Rechnungen werden nie ueberschrieben.
+  * Eigene Nummernkreise auf dem Mobilgeraet (2026-M001, KD-M001, P2026-M001 ...) - offline nie doppelte Nummern.
+  * Geraetebezogenes wird nicht uebertragen: PIN, Zugangsdaten/Passwoerter, Mail-Konten, Bank-Logins, Fenster/Oberflaeche,
+    Ordner, Nummernkreise, Kalender-Abos, verschluesselte Werte (*_enc).
+  * Sicherheit: eigener Abgleich-Zugang je Geraet (nur /sync/, auf dem PC sperrbar), Abwehr fremder Webseiten wie bei
+    der Handy-Schnittstelle.
+- Neues UI-Modul m59_mobil: Bedienung auf iPhone und schmalen Fenstern (unter 820 px) - Menue als Schublade (Knopf oder
+  vom linken Rand wischen), Titelleiste mit Suche und Abgleich-Knopf, Inhalte einspaltig, Tabellen seitlich wischbar,
+  Editor untereinander, Dialoge bildschirmfuellend, Eingabefelder ohne iOS-Zoom. Am PC aendert sich nichts.
+- iPhone/iPad-App (BeeWare Briefcase, Ordner PARechnung_iOS): startet das komplette Programm auf dem Geraet,
+  Daten in der Dateien-App ("PA Rechnung Daten"), Oeffnen/Drucken/Teilen ueber das iOS-Teilen-Blatt. Bauen auf einem
+  Mac mit Xcode: build_ios.sh (Anleitung im Handbuch).
+- Kern: server_start() (m20) fuer die App; open_path (m01) mit Andockpunkt PA_OPEN_HOOK.
+- m88 v1.4.0: Abgleich-Routen /sync/* (Zugang Typ "sync"), Kopplung liefert der App den Zugang direkt.
+- m89 v1.1.1: Abgleich-Tabellen und /api/sync/ nicht im Rueckgaengig-Verlauf.
+
+v3.6.4 - Apps: andere Web-Apps per Link im Programm
+- Neues Modul m57_apps + Seite "Apps": Web-Apps per Link erfassen (Name, Weblink, Symbol, Farbe, Gruppe, Notiz) und mit
+  einem Klick oeffnen - im eigenen Programmfenster (pywebview, Anmeldungen bleiben) oder im Standard-Browser.
+  Links ohne https:// werden ergaenzt; Geraete im Heimnetz per IP gehen auch. javascript:/file:/ftp: werden abgewiesen.
+- Seitenleiste: neue Rubrik "Apps" - jede App mit "in der Seitenleiste" ist ein normaler Menue-Eintrag (verschieben,
+  ausblenden unter "Oberflaeche" wie alle anderen). Klick oeffnet die App, die aktuelle Seite bleibt.
+- Kacheln nach Gruppen, Reihenfolge per < >, Oeffnen im Browser als Zusatzknopf.
+- Datenschutz: das Programm ruft die Links nie selbst ab (kein Vorschaubild, kein Favicon); die App bekommt keine
+  Programmdaten. Gespeichert in den Einstellungen (apps) - damit auch im Backup.
+- m63_layout: Rubrik "Apps" wird bei Bedarf angelegt.
+
+v3.6.3 - Termine in der Handy-App, keine Daten an fremde Seiten
+- Handy-App (m88 v1.2.0): neue Seite "Termine" - alle Kalender (TimeTree, .ics, Kalender-Abos wie MediaFlow,
+  Programm-Termine) fuer 14 Tage, vor/zurueck, Suche, Details mit Beschreibung, Navigation und Link, Liste der Abos
+  mit Status und "Abos jetzt abrufen" (Schreib-Recht). REST: GET /v1/kalender, GET /v1/kalender/abos,
+  POST /v1/kalender/abrufen.
+- Keine Daten an fremde Seiten:
+  * Kalender-Abo-Abruf (m29b): nur ein einfacher GET auf den Link - neutrale Browser-Kennung, keine Cookies (auch
+    keine angenommenen), kein Referer, keine Programmdaten; Weiterleitungen nur auf http(s).
+  * Handy-Schnittstelle: Anfragen, die eine andere Webseite im Browser ausloest (Sec-Fetch-Site: cross-site), werden
+    fuer /v1, /pair, /logout mit 403 abgewiesen - auch mit gueltigem Anmelde-Cookie. Cross-Origin-Resource-Policy.
+  * Programm (m19): zusaetzlich Referrer-Policy no-referrer (geoeffnete Links verraten die Programm-Adresse nicht),
+    nosniff, Cross-Origin-Resource-Policy same-origin.
+  Geprueft: fremde Webseite im selben Browser (Programm entsperrt, App angemeldet) - 8 von 8 Zugriffsversuchen blockiert,
+  eingeschleuster Abo-Link nicht gespeichert.
+
+v3.6.2 - Kalender-Abos per Link (ICS / webcal)
+- Neues Modul m29b_kalender_abo: beliebig viele Internet-Kalender per Link abonnieren (https://... oder webcal://...),
+  z. B. MediaFlow-Laufzeiten, Google-/Outlook-/iCloud-Freigaben, Schulferien. Jeder Link = eigener Kalender unter
+  "Kalender" (farbiger Chip, ein-/ausblendbar), in der Uebersicht und in der Termin-Suche. Nur lesend.
+- Kalender -> "Kalender-Abos": hinzufuegen (Link, Name, Farbe, Abruf-Intervall 15 Min. bis taeglich, aktiv), bearbeiten,
+  jetzt abrufen, alle abrufen, entfernen. Status je Abo (letzter Abruf, Anzahl Termine, Fehlermeldung im Klartext).
+- Automatischer Abruf im Hintergrund je nach Intervall; bei Fehler bleiben die letzten Termine stehen.
+  Abgesagte Termine (STATUS:CANCELLED) werden ausgeblendet. UTC-Zeiten werden in Ortszeit umgerechnet.
+- Der MediaFlow-Laufzeiten-Link wird beim ersten Start einmalig eingetragen (entfernen ist endgueltig).
+- Gespeichert in den Einstellungen (kal_abos) - damit auch im Backup. Routen /api/kalabo/liste, speichern, loeschen, abrufen.
+
+v3.6.1 - Belege gross ansehen, Statistik aufraeumen, Kontostand verdeckt, Absturz behoben
+Belege & Import (Pruefliste):
+- Klick aufs Vorschaubild oder "Gross ansehen" oeffnet die Datei bildschirmfuellend: alle Seiten, Zoom (Knoepfe, +/-,
+  Strg+Mausrad), "Breite", "Ganze Seite", Drehen (nur Anzeige), "Programm" oeffnet das Original. Unten die erkannten
+  Werte (Art, Partner, Betrag, Datum, Nr.) zum Vergleichen, "Werte aendern", "Uebernehmen" (springt danach zum naechsten
+  Beleg) und Blaettern (Pfeiltasten). Nicht-Bild-Formate (XML-E-Rechnung, Word, Excel) als Text. Neues Modul m39_ansicht.
+Statistik:
+- Knopf "Aufraeumen" (Uebersicht und alle Reiter): Doppelte suchen (Assistent) und alle 0-EUR-Eintraege des Jahres
+  (Rechnungen, Ausgaben, sonstige Einnahmen, Gehalt) in einer Liste zum Loeschen.
+- Eintraege in den Reitern Rechnungen, Einnahmen (nur Belege), Ausgaben, Gehalt ankreuzen -> Loeschen.
+  Festgeschriebene Rechnungen bleiben (GoBD, dafuer stornieren). Rueckgaengig ueber den Verlauf.
+Absturz behoben:
+- pdfium (PDF-Bilder) ist nicht threadsicher: wurden zwei PDF-Seiten gleichzeitig gerendert (Vorschaubilder der
+  Belegliste, Texterkennung, Drucken), konnte das ganze Programm ohne Meldung abstuerzen. Alle Stellen laufen jetzt
+  ueber eine gemeinsame Sperre (PDFIUM_LOCK in m01; m02, m05, m09, m39, m64).
+- Uebersicht: Kontostand, "Seitdem ... ca." und Verlaufskurve sind verdeckt (•••••• mit Auge). Ein Klick auf einen
+  verdeckten Betrag zeigt alle Kontostand-Werte der Seite, ein weiterer Klick verdeckt sie wieder. Beim Verlassen der
+  Uebersicht sind sie automatisch wieder verdeckt.
+- Gilt fuer die Kachel "Kontostand", die Kennzahl "Kontostand" und die Kachel "Liquiditaet" (heute, tiefster Stand,
+  Ende, Kurve). Auf den Seiten Bank-Abgleich und Liquiditaet bleibt der Betrag sichtbar.
+- ui/kern_02_uebersicht.js (kontoMask), ui/m61_dashboard.js, ui/kern_01_basis.js (go setzt zurueck).
+
+v3.6.0 - E-Mails lesen
+- E-Mails (Finanzen): Klick auf eine Mail oeffnet jetzt die ganze Mail zum Lesen - mit Bildern und Formatierung
+  (HTML-Ansicht wie bei Privat-Mails), An/Kopie/Antwort-an, alle Anhaenge zum Oeffnen. Vorher nur ein Textausschnitt
+  von 4000 Zeichen. Die Rechnungs-Erkennung steht klein darueber ("Warum?" klappt die Begruendung auf).
+- Gelesen/ungelesen: neue Mails sind fett mit blauem Punkt, Filter "Ungelesen", Auswahl "Als gelesen"/"Als ungelesen",
+  in der Mail "Als ungelesen markieren". Vorhandene Mails gelten beim Update als gelesen (Migration 3).
+- Suchfeld (Absender, Betreff) und Blaettern in der Mail ("Vorherige"/"Naechste") in der aktuellen Liste.
+- "Antworten" oeffnet das eigene Mailprogramm mit Empfaenger, "AW:" und zitiertem Text; "Original oeffnen" oeffnet die
+  gespeicherte .eml/.msg in Outlook/Thunderbird/Windows-Mail.
+- Externe Bilder bleiben blockiert (keine Lesebestaetigung an den Absender), "Bilder laden" zeigt sie fuer diese Mail.
+  Auch bei Privat-Mails.
+- Sicherheit: Skripte, Formulare, Frames und automatische Weiterleitungen in Mails sind abgeschaltet.
+- m30_mail_eingang v3.2.0 (Routen /api/mail/gelesen, /api/mail/original, /api/mail/antworten, Selbsttest "Lesen"),
+  ui/m30_mail.js v1.1.0, ui/m98_mail.js.
+
+v3.5.1 - Fehlerpruefung nach v3.5.0
+Geprueft: statische Analyse aller Python-Module (pyflakes, keine undefinierten Namen) und der kompletten Oberflaeche
+(ESLint, keine undefinierten Namen), Klick-Test (39 Seiten, 211 Knoepfe), Rundgang, Vorher/Nachher-Vergleich,
+Abgleich mit Teilzahlung/Skonto/doppelter Zuordnung, Jahresabschluss fuer leeres/laufendes/kuenftiges Jahr,
+Jahresbericht, Datenpaket, Systempruefung, Update 3.1 -> 3.5 mit Sicherung und Migration.
+- m99e v1.1.1: Tempo-Messung zaehlte die Wartezeit auf den Browser mit; jetzt ab der gelesenen Anfrage.
+- m01b v1.0.1: alte "vor_update_"-Sicherungen wurden nach Dateiname statt nach Zeit aufgeraeumt - nach einem
+  Zurueck- und wieder Vorwaertswechseln der Version konnte die neueste Sicherung geloescht werden.
+- WICHTIG (aus der Systempruefung am echten PC): Wurde die neue Version ueber einen alten Programmordner
+  entpackt, blieben die in v3.1.0 zusammengelegten Altdateien (m44_steuerbescheid, m45_jahr, m46_angleich,
+  m84_kalender_plus, m84b, m84c, m98_gmail_login, m99_mail_privat, m99b, m99c, m30_mail_import, m31_imap und
+  die alten ui-Dateien) liegen und wurden ZUSAETZLICH geladen (100 statt 88 Module). Folge: Schritte doppelt in
+  den Ketten, zvE-Angleich im Selbsttest falsch (m46), Kalender-Schritte doppelt, Mail-Abholung doppelt.
+  Kern: ersetzte Altdateien werden beim Start uebersprungen (MODULES_REPLACED), ebenso in der Oberflaeche
+  (m19 UI_REPLACED). Systempruefung (m99e) meldet "Alte Dateien im Programmordner".
+  build_exe.bat loescht die Altdateien vor dem Bauen, make_update.py nimmt sie nie in ein Update auf.
+
+v3.5.0 - Baustellen-Modus, Jahresabschluss, Abgleich, aufgeteilte Oberflaeche (enthaelt 3.2 - 3.5)
+3.5 Baustellen-Modus am Handy (m88 v1.1.0)
+- Neue Seite "Baustelle" in der Handy-App: Projekt waehlen -> Kunde, Ansprechpartner, Adresse mit Navigation,
+  Anrufen per Tipp, Projektbeschreibung, gebuchte Stunden.
+- Fotos direkt in den Projektordner ("Fotos Baustelle"), Aufmass-Positionen (L x B x H x Anzahl, Einheit) direkt ins
+  Projekt-Aufmass (m41), Notiz zum Projekt. Reiter "Projekte" heisst jetzt "Zeit".
+3.4 Jahresabschluss-Assistent (m99f)
+- Seite Finanzen -> Jahresabschluss: 8 Pruefschritte (Rechnungen, Belege, Bank, Kasse, Anlagen, Fahrten/Gehalt,
+  Umsatzsteuer, Ergebnis) mit Ampel, Sprung auf die passende Seite und Haken "erledigt".
+- Werte fuer ELSTER zum Abtippen (Anlage EUER Zeile/Kennzahl, Anlage N, Vorsorge, Werbungskosten), kopierbar.
+- Ausgabe: Jahresbericht-PDF, DATEV-Export, Datenpaket.
+3.3 Abgleich-Zentrale (m71b)
+- Seite Finanzen -> Abgleich: alle Bankumsaetze ohne Zuordnung mit Vorschlaegen (offene Rechnung inkl. Teilzahlung,
+  bezahlte Rechnung nur verknuepfen, Beleg +-10 Tage, Storno, Ausgabe/Einnahme anlegen, privat, erledigt).
+- "Alle sicheren uebernehmen" (nur eindeutige Treffer), Zahlungen laufen ueber m71 (Teilzahlung, Skonto).
+- Reiter "Belege ohne Bankbewegung" je Jahr. Datenbank-Migration 2 (Spalte bank_tx.abg).
+3.2 Oberflaeche aufgeteilt + Tempo
+- Das Skript aus ui.html (2.858 Zeilen) liegt jetzt in 13 Dateien ui/kern_01 ... kern_13 (gleiche Reihenfolge,
+  ausgeliefert als /ui/_kern.js). ui.html enthaelt nur noch das Geruest.
+- Systempruefung v1.1.0: misst die Dauer jeder Server-Abfrage und jeder Seite im Rundgang (Bereich "Tempo").
+
+v3.1.0 - Neues Fundament (Stufe 2)
+Wieder nur unter der Haube - Ergebnisse unveraendert (Vorher/Nachher-Vergleich identisch, Rundgang 40 Seiten ohne Fehler).
+- Letzte Sonderstellen auf Ketten: EUeR (m60 Cache, m71 Teilzahlungen, m80 Bewirtung), Steuerberechnung (m25, m46),
+  Datenbank-Schreiben (m51 GoBD-Protokoll, m60, m83, m86 Regeln, m89 Rueckgaengig). Keine Funktion wird mehr von
+  Hand ueberschrieben - jede Erweiterung ist eine Stufe (chain_step), "eine Stufe tiefer" geht ueber chain_inner.
+- Module zusammengefasst (94 -> 86 Dateien), Reihenfolge und Verhalten gleich:
+  m84_kalender (aus m84_kalender_plus, m84b_timetree_schreiben, m84c_kurstermine),
+  m44_steuerjahr (aus m44_steuerbescheid, m45_jahr, m46_angleich) + ui/m44_steuerjahr.js,
+  m98_mail (aus m98_gmail_login, m99_mail_privat, m99b_rechnungsabsender, m99c_outlook) + ui/m98_mail.js,
+  m30_mail_eingang (aus m30_mail_import, m31_imap).
+- Toter Code: keine ungenutzten Funktionen mehr gefunden (Python und Oberflaeche); 3 Server-Routen ohne Aufrufer
+  entfernt (/api/downloads, /api/fixkosten/generate, /api/vorlagen/leere_ordner_loeschen).
+
+v3.0.0 - Neues Fundament (Stufe 1)
+Unter der Haube neu gebaut - Bedienung und Ergebnisse bleiben gleich (Vorher/Nachher-Vergleich: 11 Dokumente,
+PDF-Texte, 597 Datenbankzeilen, Steuer/EUeR/UStVA/Statistik identisch; Rundgang 40 Seiten ohne Fehler).
+- Rechnungs-PDF: USt-Block (Regelbesteuerung) und Sprache/Waehrung (Englisch, Fremdwaehrung) sind jetzt fest im
+  Renderer eingebaut. Vorher haben m80 und m82 den Quelltext des Renderers beim Start als Text umgeschrieben und neu
+  uebersetzt - jede kleine Aenderung an m02 konnte USt-Block oder englische Rechnungen still abschalten.
+- Ketten statt versteckter Huellen: 69 Funktionen (Rechnung speichern/drucken/stornieren, Datenbank, Einstellungen,
+  Bank, Mail, Kalender ...) haben jetzt eine sichtbare Kette von Stufen (chain_step) statt "_orig = f; def f()".
+  Reihenfolge und Verhalten unveraendert; die Kette steht in der Systempruefung.
+- Datenbank-Versionierung (m01b): Tabelle db_version (Programmstand, Migration, Fingerabdruck), nummerierte
+  Migrationen (laufen genau einmal, in einer Transaktion, mit Protokoll), automatische Sicherung der Datenbank vor dem
+  ersten Start einer neuen Programmversion (Backup\vor_update_<alt>_nach_<neu>_<zeit>.sqlite, die letzten 8 bleiben),
+  Hinweis wenn die Datenbank von einer neueren Version stammt.
+- Neue Seite System -> Systempruefung (m99e): prueft am eigenen PC Programm/Module, Selbsttest (Wegwerf-Daten),
+  Datenbank (Integritaet, Version, Sicherungen), Ketten, Texterkennung, Scanner (WIA-Geraete), TimeTree, Mail, Bank,
+  Sicherung + Rundgang durch alle Seiten; Bericht als PDF in Downloads.
+- Werkzeuge fuer die Entwicklung (Ordner werkzeuge): vergleich.py (Vorher/Nachher) und rundgang.js (Browser-Rundgang).
+
+v2.6.7 - Texterkennung (OCR) repariert
+- Neuer zweiter Weg zur Windows-Texterkennung ueber PowerShell (ohne Zusatzpaket, Windows 10/11). Fehlte oder versagte das Python-Paket winrt in der EXE, lief bisher gar keine Texterkennung.
+- Python-winrt-Weg laeuft jetzt in einem eigenen Thread mit eigener COM-Umgebung (im Server-Thread konnte er scheitern).
+- Fehlergrund wird angezeigt (z. B. fehlende deutsche OCR-Sprache) statt nur "Kein Text gefunden".
+- Neuer Knopf "Texterkennung testen" in Belege & Import (zeigt Weg, gelesenen Text und Grund).
+- Gescannte PDFs mit ein paar Zeichen (Seitenzahl, Scannername) werden jetzt auch per OCR gelesen (vorher: Text "vorhanden" -> keine OCR).
+- Passwortgeschuetzte Scans: Passwort geht an die Texterkennung (vorher keine OCR).
+- Handyfotos werden nach EXIF gedreht, kleine Bilder vergroessert, PDF-Seiten mit ca. 300 dpi gelesen (vorher ca. 190 dpi, Kassenzettel zu klein).
+- HEIC-Fotos (iPhone) gehen direkt an den Windows-Bilddecoder.
+- Steuerbescheid: bis zu 12 Seiten werden gelesen (vorher nur 3 - Werte auf Seite 4-6 fehlten).
+- Kontoauszug, Nachweise, Assistent: Texterkennung nur noch, wenn sie mehr Text liefert; Fehler brechen den Import nicht mehr ab.
+
+v2.6.6 - Belege einscannen
+Scannen (m24_scanner v1.1.0)
+- Belege & Import: neuer Knopf "Scannen" neben "Dateien auswaehlen". Windows-Scanfenster (WIA), mehrere Seiten, Seiten entfernen.
+- Der Scan laeuft durch dieselbe Belegerkennung wie eine hineingezogene Datei (Texterkennung, Assistent, Art/Kategorie/Betrag) und erscheint in der Pruefliste zum Uebernehmen.
+- Wahl: alle Seiten = ein Beleg (mehrseitige Rechnung) oder jede Seite = eigener Beleg (Stapel Kassenzettel).
+
+v2.6.5 - Termine nach TimeTree, Kurstermine ohne Teilnehmer, Scannen in Rechnungen und Angebote
+Kalender / TimeTree (m84b_timetree_schreiben v1.0.0)
+- Neuer Termin / Termin bearbeiten: Auswahl "Kalender" (nur im Programm oder ein TimeTree-Kalender) und TimeTree-Label.
+- Termin wird beim Speichern in TimeTree eingetragen, geaendert, verschoben (auch in einen anderen Kalender) oder geloescht. Danach laedt das Programm TimeTree neu und prueft, ob der Termin angekommen ist (Status: in TimeTree / unklar / nicht uebertragen).
+- Kein Internet: Termin bleibt im Programm, wird alle 5 Minuten erneut gesendet (hoechstens 6 Versuche), Knopf "Erneut uebertragen".
+- Vorhandene TimeTree-Termine (ohne Wiederholung) koennen im Programm bearbeitet und geloescht werden.
+- Hinweis: TimeTree hat keine offizielle Schreib-Schnittstelle; das Programm nutzt den Weg der TimeTree-Webseite und merkt sich, welche Variante funktioniert. Die letzten Aufrufe stehen in der Diagnose.
+Unterricht (m84c_kurstermine v1.0.0)
+- Kurse koennen Termine bekommen, auch wenn noch kein Teilnehmer drin ist (Kurszeile anklicken). Mit Uhrzeit von/bis; erscheinen im Kalender und im ICS-Abo ("Kurstermine").
+- Teilnehmer hinzufuegen: bisherige Kurstermine wahlweise alle, nur ab heute oder gar nicht nachtragen (Dauer aus der Uhrzeit bzw. dem Kurs).
+- "Als Unterrichtsstunde" aus dem Kalender geht auch fuer einen Kurs ohne Schueler.
+Scannen (m24_scanner v1.0.0)
+- Rechnungen und Angebote: Knopf "Scannen" bei den Anlagen. Windows-Scanfenster (WIA, kein Zusatzprogramm), Farbe/Grau/Schwarz-Weiss, mehrere Seiten, Seiten entfernen, alles als eine PDF anhaengen (Belege/Anlagen/<Jahr>). Festgeschriebene Dokumente bleiben gesperrt.
+- Scan-Sitzungen, die nicht angehaengt wurden, werden nach 2 Tagen entfernt.
+
+v2.6.4 - Grosse Fehlerpruefung des ganzen Programms (11 unabhaengige Pruefungen, alle Module + Oberflaeche)
+Sicherheit
+- Datenpaket-Import: Dateien nur noch in Belege/, E-Mails/, Eingang/, Dokumente/, Briefe/, Projekte/, Unterricht/ - ein manipuliertes Paket konnte vorher Programmcode (Programm/versionen) oder eine Umzugsdatei einschleusen. Aufraeumen nach Datenordner-Umzug verschiebt nur noch nachweislich alte Datenordner.
+- Rueckgaengig/Wiederholen stellt widerrufene Handy-/API-Zugaenge, PIN- und Stimmdaten nie wieder her.
+- Zugriffsprotokoll speichert Zugangs-Tokens nur noch gekuerzt; Kalender-Abo nur mit Kalender-Token.
+- Rechnungs-Absenderliste prueft die komplette Domain (apple.com statt "apple"): Phishing-Absender wie apple.top oder telekom-kundenservice.ru werden nicht mehr als Rechnung uebernommen. Mails werden einmal neu bewertet.
+- Mail "Verbindung testen" schickt gespeicherte Passwoerter nur an den gespeicherten Server.
+- Bank-Fenster: Rohdaten ohne Tokens/Sitzungsdaten; Browser-Profil mit Bank-Cookies nicht mehr im Voll-Backup; Doppelklick startet kein zweites Fenster.
+- Automatische Sperre wirkt jetzt auch im Server (Sitzung verfaellt nach der eingestellten Leerlaufzeit).
+- Backup-Wiederherstellung: keine Pfade ausserhalb des Datenordners. ZIP-Groessengrenzen (50 MB je Datei, 200 MB je Archiv).
+- Outlook: Store-Suche nach Dateinamen nur noch fuer .ost; .pst-Erstimport in Bloecken mit Fortschritt, haengende PST wird beim naechsten Start abgehaengt.
+Geld, Steuer, Buchhaltung
+- Bank-Abgleich: Rechnungsnummer muss als ganzes Wort vorkommen (vorher traf z. B. 2026-011 jedes Datum 15.01.2026); "bezahlt" nur bei passendem Betrag.
+- Zweite Zahlung auf eine bereits bezahlte Rechnung wird als Ueberzahlung gebucht (vorher fehlte sie in der EUeR).
+- Geloeschte Rechnungen: alle Verknuepfungen werden geloest (Bank, Angebote, Wartung, Pruefungen, Abschlaege, Aufmass, Kasse, Mahnungen ...) - eine neue Rechnung mit derselben Nummer erbt nichts mehr. Schlussrechnung zieht keine fremde Rechnung mehr als Abschlag ab; Lagerbestand bleibt richtig.
+- Einkommensteuer-Tarif 2023 ergaenzt (vorher Werte von 2024).
+- Unplausible Gehaltsabrechnung: Lohnsteuer zaehlt auch nicht mehr mit.
+- Regelbesteuerung: Gutschriften senken die Vorsteuer; Storno im Kassenbuch nimmt Vorsteuer/USt mit; Bareinnahmen und sonstige Einnahmen mit USt in der UStVA; Bewirtung 70 % vom Netto + volle Vorsteuer in EUeR, Gewinn und Steuer; Stichtag stellt offene Rechnungen richtig um; DATEV-Belegdatum im Exportzeitraum.
+- Kassenbuch: kein negativer Bestand, keine Aenderung abgeschlossener Kassenbelege, Storno einer Rechnungszahlung nicht loeschbar.
+- Kleinunternehmer-Waechter: abgeschlossene Jahre ohne Hochrechnung, Monatsende richtig.
+- Rueckgaengig einer Werbungskosten-Korrektur ergibt wieder den alten Wert.
+Pruefungen / Dokumente
+- DGUV-Messwert "0.500" wurde als 500 gelesen (falsch bestanden) - jetzt 0,5. Gleiches im ganzen Programm (Eingabefelder): 0.500 = 0,5; Unicode-Minus wird erkannt.
+- Aufmass: Masse beim Bearbeiten nicht mehr um Faktor 1000 falsch.
+- Abnahmeprotokoll-Nummern nach Loeschen eindeutig, unterschriebenes PDF wird nicht mehr ueberschrieben.
+- PDF-Dateinamen behalten Trennzeichen (2026-001 und 20260-01 ueberschreiben sich nicht mehr).
+Bedienung
+- Doppelklick in Dialogen legt nichts mehr doppelt an (Kunden, Projekte, Korrekturbuchungen, Fixkosten, Abschlaege, Mail-Uebernahme ...).
+- Gemerkte Eingaben gehoeren zum jeweiligen Datensatz (Notiz/Cc von Kunde A erschien vorher bei Kunde B).
+- Einstellungen: Reiterwechsel verliert keine Eingaben mehr. Speichern loescht keinen anderen geparkten Entwurf.
+- Ueberfaellig-Anzeige wie im Server (Frist 0 = sofort, Faelligkeitstag selbst ist noch nicht ueberfaellig).
+- Positionen lassen sich eine Zeile nach unten ziehen; Vorschaubilder bei Namen mit Apostroph; Fehler beim Anlagen-Upload werden gemeldet.
+- Webbank-Abruf blockiert sich nicht mehr selbst; Datumsanzeigen nach Mitternacht richtig.
+- Regeln mit "wiederholen" laufen bei Zeit-Ausloesern nur einmal je Zeitraum (vorher alle 10 Minuten).
+- Datenordner nicht erreichbar (NAS/USB): klare Meldung statt stillem Start mit leerer Datenbank.
+- Update: alte Versionen werden erst nach bestandenem Selbsttest aufgeraeumt.
+- Kalender: Termine mit Uhrzeit (VALUE=DATE-TIME) nicht mehr ganztaegig; Termine vor 1970; ungueltiges Wiederholungsende legt das Abo nicht mehr lahm.
+- Beleg-Uebernahme verliert bei Eingabefehlern keine Datei mehr.
+Unnoetiger Code entfernt (wirkungslose Abfragen, doppelte Routen/Funktionen, unbenutzte Variablen) in rund 20 Dateien.
+
+v2.6.3
+- Vorlagen aufraeumen (Modul m47, Seite Vorlagen):
+  - Knopf "Aufraeumen" mit Uebersicht und Haken: unsichere Kategorien bestaetigen, doppelte Dateien loeschen, fehlende aus dem Katalog entfernen, neue als gesehen markieren, leere Dateien (0 Byte) und leere Ordner loeschen - alles in einem Schritt, danach Ergebnisliste.
+  - Doppelte loeschen: der Inhalt wird vor dem Loeschen noch einmal mit dem Original verglichen; das Original bleibt, eigene Kategorie/Notiz der Kopie geht aufs Original ueber, Briefe mit der Kopie zeigen danach aufs Original.
+  - Geloescht wird in den Windows-Papierkorb; auf Netzlaufwerken/NAS in den Unterordner "_Papierkorb_Vorlagen" (wird beim Scan uebersprungen).
+  - Aehnliche Namen mit anderem Inhalt ("- Kopie", "(1)", "copy", "Kopie von") werden zum Pruefen angezeigt (oeffnen / einzeln loeschen), nicht automatisch.
+  - Filter "Unsicher": "Alle bestaetigen" und je Vorlage "bestaetigen"; Filter "Doppelte": "Alle Doppelten loeschen" und je Datei "Loeschen".
+  - Ansicht "Liste": Mehrfachauswahl mit Bestaetigen, Kategorie setzen, Als gesehen, Loeschen.
+  - Vorlagen-Dialog: "Bestaetigen", "Doppelte loeschen", "Datei loeschen".
+
+v2.6.2
+- Behoben: "Jahr bearbeiten" zeigte die Meldung "'str' object has no attribute 'get'" und blieb leer, wenn im Jahr ein Beleg aus einem aelteren Import liegt, dessen Zusatzdaten nur Text (oder eine Liste) enthalten. Solche Belege werden jetzt normal angezeigt und koennen bearbeitet werden (Modul m45 v1.0.1, mit Selbsttest).
+
+v2.6.1
+- Neu: "An Bescheid angleichen" (Modul m46) - ein Jahr (z. B. 2025) in einem Schritt so anpassen, dass es mit dem Steuerbescheid uebereinstimmt.
+  - Liste aller Abweichungen Programm <-> Bescheid: Gewinn/Einkuenfte Gewerbe (bzw. Einnahmen/Ausgaben lt. Erklaerung), Bruttolohn, Lohnsteuer, Werbungskosten, ESt-Vorauszahlungen, zu versteuerndes Einkommen, Einkommensteuer, Soli, Kirchensteuer, Erstattung/Nachzahlung - jeweils anhakbar.
+  - Ein Klick: Korrekturbuchungen (Einnahme oder Ausgabe mit Kategorie, Gehalt-Jahreswert), Werbungskosten und Vorauszahlungen als Angabe, zvE-Abgleich (Vorsorge-/Sonderausgaben so, wie das Finanzamt sie angesetzt hat), Steuer/Soli/KiSt/Erstattung laut Bescheid.
+  - Danach zeigen Jahresabrechnung, Kacheln, Abgleich, Jahresbericht und Export die Werte des Bescheids; Ergebnisliste mit Haken je Punkt.
+  - Startet automatisch nach "In den Jahresabschluss uebernehmen", wenn etwas abweicht. Knopf "An Bescheid angleichen" und Hinweis in der Steuerakte; Pruefung auf "Jahr bearbeiten" meldet offene Abweichungen.
+  - Zuruecknehmen: Korrekturbuchungen einzeln in der Liste, zvE-Abgleich und Steuer lt. Bescheid ueber "Angleichung zuruecknehmen".
+
+v2.6.0
+- Steuerbescheid einfuegen (Modul m44): Knopf "Steuerbescheid einfuegen" in der Steuerakte (Jahresabrechnung & Steuer) und auf der neuen Seite "Jahr bearbeiten". PDF, Scan oder Foto auswaehlen - das Programm legt den Bescheid in der Steuerakte des richtigen Jahres ab (Jahr wird aus dem Bescheid gelesen) und erkennt die Werte automatisch:
+  - festgesetzte Einkommensteuer, Solidaritaetszuschlag, Kirchensteuer; Steuerabzug vom Lohn; angerechnete Vorauszahlungen; Erstattung / Nachzahlung; zu versteuerndes Einkommen; Einkuenfte Gewerbe / selbstaendig; Bruttoarbeitslohn; Werbungskosten; Mobilitaetspraemie; Bescheiddatum.
+  - Vorschau: erkannter Wert (aenderbar) / bisher gespeichert / Programmwert, je Zeile anhakbar. "In den Jahresabschluss uebernehmen" traegt alles ein, optional "Jahr abgeschlossen".
+  - Kuenftige Vorauszahlungen aus dem Bescheid (z. B. "ab 2026 vierteljaehrlich je 300 EUR") werden auf Wunsch als ESt-Vorauszahlungen des Folgejahres eingetragen (Steuer-Ruecklage rechnet damit).
+  - Aenderungsbescheide werden erkannt; jeder uebernommene Bescheid bleibt im Bescheid-Verlauf sichtbar.
+  - Bereits abgelegte Bescheide: Knopf "Werte auslesen" an jedem Bescheid in der Steuerakte.
+  - Scans ohne Text werden per Texterkennung gelesen, wenn OCR installiert ist; geschuetzte PDFs mit dem Standard-Passwort.
+  - Neue Felder im Jahresabschluss: festgesetzte Kirchensteuer, angerechnete ESt-Vorauszahlungen.
+- Neue Seite "Jahr bearbeiten" (Finanzen, Modul m45): alles eines Jahres an einer Stelle.
+  - Ueberblick: Kennzahlen, Erstattung/Nachzahlung lt. Bescheid (sonst Schaetzung), Pruefung auf Luecken (offene Rechnungen, Entwuerfe, bezahlt ohne Zahldatum, Ausgaben ohne Kategorie oder ohne Belegdatei, Betrag 0, fehlende Gehaltsmonate, kein Bescheid), Monatstabelle.
+  - Rechnungen: Status offen/bezahlt und Zahldatum direkt aendern, Anzeige, fuer welches Jahr die Einnahme zaehlt (Zufluss, 10-Tage-Regel), auch Rechnungen aus dem Vorjahr mit Zahlung im Jahr.
+  - Ausgaben, sonstige Einnahmen, Gehalt: Datum, Partner, Nr., Betrag, Kategorie, Notiz und Art direkt in der Tabelle bearbeiten, gesammelt speichern (geaenderte Zeilen markiert, Verwerfen), neuer Eintrag ohne Datei, Mehrfachauswahl (Kategorie setzen, Loeschen), Belegdatei oeffnen, kompletter Beleg-Dialog.
+  - Steuer-Angaben des Jahres (wie unter Jahresabrechnung & Steuer).
+  - Bescheid & Abschluss: komplette Steuerakte inkl. Abgleich, Korrigieren und Liste der uebernommenen Bescheide.
+  - Hinweis vor dem Speichern, wenn das Jahr als abgeschlossen markiert ist.
+
+v2.5.0
+- Google-Anmeldung (Geschaefts- und privates Postfach): Die E-Mail-Adresse steht im Google-Fenster schon drin - das Fenster oeffnet die Google-Anmeldung mit deiner Adresse, traegt sie ein und klickt "Weiter". Du gibst nur noch Passwort und Bestaetigung ein.
+  - Geschaeftspostfach: Adresse aus E-Mail-Abruf/E-Mail-Versand. Ist dort noch keine hinterlegt, fragt das Programm EINMAL danach und merkt sie sich.
+  - Privates Postfach: Adresse wird nur beim allerersten Verbinden abgefragt, danach nie wieder (aendern: Einstellungen > Privates Postfach).
+
+v2.4.9
+- Stimmpruefung deutlich verbessert (Modul m99d v2):
+  - 10 Aufnahmen statt 3 - einzeln (Knoepfe 1-10) oder gefuehrt "Alle 10 nacheinander aufnehmen" mit Ansage und Signaltoenen. Passt eine Aufnahme nicht zu den anderen (Versprecher, Stoergeraeusch), nennt das Programm genau deren Nummer zum Wiederholen.
+  - Der Satz ist geheim: Beim Entsperren steht nur noch "Sprich jetzt deinen Satz" - der Satz wird nicht angezeigt und nicht an die Sperrseite geschickt. Er steht nur verdeckt in den Einstellungen (verschluesselt im Stimmprofil).
+  - Akustik: Sprachansage nach der PIN, hoher Ton = jetzt sprechen (der Ton ist vor der Aufnahme zu Ende), Zweiklang = erkannt, tiefer Ton = nicht erkannt. Beides einzeln abschaltbar.
+  - Erkennung: Raumgeraeusch wird in den leisen Teilen der Aufnahme gemessen und herausgerechnet (auch Netzbrummen), Sprache wird an der Lautstaerke ueber dem Raumgeraeusch erkannt. Geprueft werden Wortlaut und Sprechweise (Vergleich mit den 3 aehnlichsten deiner 10 Aufnahmen, inkl. Sprechtempo-Verlauf) UND der Klang deiner Stimme. Grenzen werden aus deiner eigenen Streuung berechnet, mit Reserve fuer einen anderen Tag.
+  - Test zeigt einen Wert (bis 1,0 = erkannt).
+  - Altes Profil (3 Aufnahmen) funktioniert weiter; die Karte bittet ums Neu-Einlernen mit 10 Aufnahmen.
+- Behoben: Beim Einschalten der Stimme erschien "m92_pin geaendert - Rueckgaengig". PIN- und Stimmdaten lassen sich jetzt nie ueber "Rueckgaengig" zuruecksetzen.
+
+v2.4.8
+- Privates Gmail: "Privates Gmail verbinden" fragt zuerst nach der privaten Gmail-Adresse (Google zeigt sie nicht immer auf der Seite - sonst konnte die Anmeldung haengen bleiben). Auf der Seite Privat-Mails gibt es jetzt immer einen Knopf "Google-Anmeldung"; nimmt Gmail das Passwort nicht mehr an, wird er hervorgehoben ("Mit Google neu anmelden") mit Hinweis.
+- Fehlerpruefung (unabhaengige Code-Durchsicht aller neuen Module + Tests) - behoben:
+  - "Ist eine Rechnung" (EUR) bei Absendern, die nicht auf der Liste stehen: der Rechnungs-PDF-Anhang wurde nicht ausgewertet, "Als Beleg uebernehmen" legte dann nur den Mailtext als PDF ab statt der echten Rechnung. Jetzt wird der Anhang beim Markieren nachtraeglich ausgewertet (auch wenn ein Absender spaeter auf die Liste kommt).
+  - Privat-Mails aus .msg/.pst/.ost: "Ans Geschaeft uebergeben" meldete "Mail-Datei fehlt" - jetzt auch fuer mail.msg.
+  - Outlook-Abruf: eine einzelne defekte/geschuetzte Mail hat jeden weiteren Abruf abgebrochen - jetzt wird sie uebersprungen (als Fehler gezaehlt).
+  - Mails, deren Import einmal fehlschlug (Platte voll, Lesefehler), wurden nie wieder versucht - jetzt bis zu 3 Versuche (privates Postfach, Outlook-Abruf, Outlook-Dateien).
+  - Outlook-Einstellungen speichern hat jedes Mal den Abruf-Stand zurueckgesetzt (doppelte Arbeit, "weitere beim naechsten Abruf" kam nie zum Ende) - jetzt nur, wenn Konto/Ordner wirklich geaendert werden.
+  - Ziel einer Outlook-Datei waehrend einer laufenden Aktualisierung geaendert: die Aenderung ging verloren - bleibt jetzt erhalten.
+  - Sicherheit: Programme/Skripte aus Mail-Anhaengen (.exe, .js, .hta, .bat, .ps1, .lnk, .msi, Makro-Office-Dateien ...) werden nicht mehr direkt geoeffnet (Hinweis + "Ordner oeffnen").
+  - Sicherheit: Privat-Mails mit automatischer Weiterleitung (meta refresh) oder eingebetteten Formularen/Frames konnten trotz Bildsperre eine Lesebestaetigung ausloesen - wird jetzt entfernt.
+  - Rechnungs-Absender: Muster ohne * gilt nur noch fuer den eigentlichen Domainnamen (apple -> apple.com, email.apple.com, aber nicht apple.irgendwas.de).
+  - Neu-Bewertung sehr vieler Mails (z. B. nach grossem .pst-Import) konnte an der Datenbank-Grenze scheitern - jetzt in Paketen; grosse Mengen laufen im Hintergrund.
+  - Google-Anmeldung: zweimal schnell geklickt oeffnete zwei Fenster; "selbst einfuegen" und automatisches Erkennen gleichzeitig speicherten doppelt; nach 8 Fehlversuchen blieb das Fenster ohne Hinweis stehen - alles behoben.
+  - Programmstart: ein defektes Zusatz-Modul (fehlende Bibliothek, DLL-Fehler, Programmfehler, fehlende Funktion eines anderen Moduls) schaltet nur sich selbst ab statt das ganze Programm; Grundmodule, PIN-Sperre und Sicherheit muessen weiterhin laden.
+- Gesamttest: alle 91 Programmseiten durchgeklickt - 0 Fehler; Selbsttest OK.
+
+v2.4.7
+- Behoben: Die mit build_exe.bat gebaute EXE v2.4.6 startete nicht ("No module named 'wave'"). Das neue Stimm-Modul brauchte den Python-Baustein "wave", der nicht in die EXE gepackt wurde. Das Modul liest WAV-Dateien jetzt selbst; "wave" und weitere Standard-Bausteine stehen trotzdem in der Packliste des Starters (Starter v2.1.1).
+- Absicherung, damit so etwas nicht wieder passiert:
+  - make_update prueft vor dem Bau, ob jeder Baustein, den das Programm braucht, auch in die EXE gepackt wird - sonst bricht es mit klarer Liste ab.
+  - Fehlt einem Zusatz-Modul trotzdem ein Baustein, startet das Programm ohne dieses eine Modul und meldet beim Start, welche Funktion abgeschaltet ist und wie man es behebt (EXE neu bauen). Grundmodule, PIN-Sperre und Sicherheit muessen immer laden.
+  - Der Selbsttest beim Einspielen eines Updates lehnt ein Update ab, wenn eines seiner Module nicht laden kann.
+
+v2.4.6
+- Neu: Stimme als zweiter Schluessel nach der PIN (Modul m99d). Einschalten unter Einstellungen > PIN & Sperre > Karte "Stimme": eigenen Satz festlegen (Standard "Pfeiffer Audio, oeffne dich"), 3x einsprechen, testen, mit der PIN einschalten.
+  - Entsperren: PIN -> "Sprich jetzt deinen Satz" (Mikrofon antippen oder Leertaste) -> erst wenn Stimme UND Satz passen, ist das Programm offen. Ohne Stimm-Treffer keine Sitzung, auch keine Handy-/LAN-Freigabe. Nach 5 Fehlversuchen wieder PIN.
+  - Notfall-Code (wird beim Einschalten einmal angezeigt): ersetzt die Stimme, z. B. bei Erkaeltung oder ohne Mikrofon. Neuer Code jederzeit mit PIN.
+  - Gespeichert werden nur Stimm-Merkmale, keine Tonaufnahme - verschluesselt mit dem Schluessel aus deiner PIN; PIN aendern verschluesselt automatisch neu.
+  - Strenge einstellbar (locker / normal / streng), Test-Knopf zeigt Abstand und Grenze. Ausschalten nur mit PIN.
+  - Aufnahme direkt ueber die Windows-Audioschnittstelle (Standard-Mikrofon), keine neue Bibliothek. Klare Meldung bei fehlendem Mikrofon oder gesperrtem Mikrofonzugriff (Windows-Datenschutz).
+- Steuer: Kachel "Einnahmen gesamt" auf der Seite Jahresabrechnung & Steuer = Betriebseinnahmen (Gewerbe) + Bruttoarbeitslohn aus den Gehaltsabrechnungen, beide Teile darunter einzeln. Fehlt fuer das Jahr ein Gehalt, steht dort "kein Gehalt erfasst". Das Gehalt war und ist in der Einkommensteuer-Schaetzung enthalten (Spalte 3, Anlage N) - in die EUeR gehoert es nicht, die bleibt reine Gewerbe-Rechnung.
+
+v2.4.5
+- Neu: Outlook-Datendateien .ost werden jetzt auch verarbeitet (vorher Meldung "nur Zwischenspeicher"). Eine .ost gehoert zu einem Konto im Outlook dieses PCs - das Programm findet das Konto ueber die Datei und liest alle Mails ueber Outlook aus.
+- Neu: Eingefuegte .pst/.ost-Dateien werden gemerkt - samt Ordner - und bei JEDEM Programmstart aktualisiert (nur neue Mails, ca. 45 s nach dem Start im Hintergrund). Neue .pst-Dateien, die in einem gemerkten Ordner auftauchen, kommen beim Start automatisch dazu.
+  - Beim Hineinziehen kennt das Programm nur den Dateinamen: es sucht die Datei selbst (Outlook-Datenliste, %LOCALAPPDATA%\Microsoft\Outlook, Dokumente\Outlook-Dateien, Desktop, Downloads, gemerkte Ordner). Wird eine .pst nicht gefunden, wird sie einmalig eingelesen (ohne Merken) - zum Merken ueber den Knopf "Outlook-Datei" waehlen.
+  - Ziel je Datei: Seite E-Mails = Geschaeft (wird geprueft), Seite Privat-Mails = privat (nur gespeichert); in Einstellungen > Outlook > "Gemerkte Outlook-Dateien" aenderbar.
+  - Karte "Gemerkte Outlook-Dateien": Liste mit Ziel und letzter Aktualisierung, einzeln oder alle jetzt aktualisieren, Datei/Ordner vergessen, Haken "Bei jedem Programmstart aktualisieren".
+  - Ausgelassen werden Geloeschte Elemente, Junk-E-Mail, Postausgang und Entwuerfe. Mehrere Laeufe warten aufeinander.
+- Neu: Knopf "Ist eine Rechnung" (EUR-Knopf in der Zeile, im Mail-Fenster und fuer mehrere markierte Mails). Die Mail gilt dann als Rechnung, eine Neubewertung aendert das nicht mehr. Auf Wunsch kommt der Absender auf die Rechnungs-Absenderliste (nicht bei Freemail-Adressen wie gmail/web.de und nicht bei gesperrten Absendern).
+- Neu: Urteil "Zahlung/Bestellung mit Betrag (keine Rechnung)" + Filter "Mit Betrag": Mails mit Geldbetrag, die keine Rechnung sind (Bestell- und Zahlungsbestaetigungen) - auch von Absendern, die nicht auf der Liste stehen. Sie werden nicht automatisch Rechnung; ein Klick auf "Ist eine Rechnung" genuegt.
+- Behoben: Werbung von Rechnungs-Absendern wurde als Rechnung gewertet (z. B. Apple-Newsletter "Apple Watch ... ab 79,12 EUR" als "Rechnung im Mailtext"). Newsletter/Werbung (Abmelde-Link, Massenmail, Absender wie news@, newsletter@, marketing@, insideapple) zaehlen nie als Rechnung und nicht als Zahlung. Schwache Treffer ohne Rechnungs-Betreff ebenfalls nicht. Offene Mails werden nach dem Update einmal neu bewertet.
+- Apotheken stehen standardmaessig auf der Sperrliste (Apotheke, DocMorris, medpex, mycare).
+- Behoben: Hinweis-Meldungen unten (z. B. "1 Beleg(e) ... gelegt") im dunklen Design unlesbar (weisse Schrift auf hellem Grund). Jetzt feste, kontrastreiche Farben; lange Meldungen bleiben laenger stehen, Klick schliesst sie. Auch der "Rueckgaengig"-Knopf in der Meldung ist wieder lesbar.
+- Schneller: Anhaenge von Mails, deren Absender nicht auf der Rechnungs-Absenderliste steht, werden nicht mehr analysiert (wichtig bei grossen Outlook-Dateien).
+
+v2.4.4
+- Neu: Zweites, PRIVATES E-Mail-Postfach (Modul m99) - nur verwalten, NICHT auswerten. Eigene Seite "Privat-Mails" (Seitenleiste oben) und Einstellungs-Reiter "Privates Postfach".
+  - Gmail per "Mit Google anmelden" (gleicher Ablauf wie beim Geschaeftspostfach, nur mit dem privaten Konto) oder jeder andere Anbieter per IMAP (GMX, web.de, T-Online, iCloud ...). Die Geschaeftsadresse wird dort abgelehnt - die beiden Postfaecher bleiben getrennt.
+  - Abruf nur lesend (im Postfach aendert sich nichts), automatisch alle 15 Minuten, erster Abruf: letzte 60 Tage (einstellbar).
+  - Gespeichert in eigener Tabelle und im Ordner "E-Mails privat" im Datenordner. Keine Rechnungserkennung, keine KI, nicht in Belegen, Buchhaltung, Steuer, DATEV, GoBD-Protokoll oder Verlauf.
+  - Lesen mit Formatierung, aber ohne Nachladen externer Bilder (keine Lesebestaetigungs-Pixel). Suche, Filter (ungelesen, markiert, mit Anhang), Anhaenge oeffnen, markieren, lokal loeschen.
+  - Nur auf Knopfdruck: einzelne Mail "Ans Geschaeft uebergeben" - dann wird sie dort wie jede Geschaeftsmail geprueft.
+  - Einlesen per Datei: .eml, .msg, .mbox und Outlook-Datendatei .pst.
+- Neu: Rechnungen aus E-Mails nur noch von freigegebenen Absendern (Modul m99b). Standard: Apple, eBay, Vodafone (auch Vodafone Kabel/Kabel Deutschland/Unitymedia), Telekom (auch T-Mobile), Anthropic, Deutsche Bahn. PayPal ist gesperrt. Erkannt wird am Absender-Domainnamen, nicht am faelschbaren Anzeigenamen.
+  - Alle anderen Mails werden gespeichert, aber nicht ausgewertet ("Keine Rechnung", keine KI-Abfrage).
+  - Auch von freigegebenen Absendern nur, was eine Rechnung enthaelt (Anhang, E-Rechnung, Rechnung im Mailtext wie bei Apple, Rechnung im Kundenportal wie oft bei Vodafone/Telekom). Bestell-, Versand- und Werbemails, Mahnungen und Gutschriften bleiben draussen.
+  - Liste anpassbar: Einstellungen > E-Mail-Abruf > Karte "Rechnungs-Absender". Alle offenen Mails wurden nach dem Update einmal neu bewertet. "Als Beleg uebernehmen" per Hand geht weiterhin bei jeder Mail.
+- Neu: Schnittstelle zu Microsoft Outlook (Modul m99c, Einstellungs-Reiter "Outlook") - ueber das installierte klassische Outlook, ohne neue Bibliothek:
+  - Versand ueber Outlook: Rechnungen, Angebote, Mahnungen und automatische Mails gehen ueber das gewaehlte Outlook-Konto raus (liegen in "Gesendete Elemente"); auf Wunsch erst im Outlook-Fenster anzeigen. Test-Mail ueber Outlook.
+  - Mails aus Outlook holen: Posteingang oder Unterordner eines Outlook-Kontos, per Knopf "Aus Outlook holen" (Seite E-Mails) oder automatisch. Es gilt die Rechnungs-Absenderliste. In Outlook aendert sich nichts.
+  - Outlook-Datendatei (.pst) einlesen: Knopf "Outlook-Datei (.pst)" oder hineinziehen - auf der Seite E-Mails (Geschaeft, wird geprueft) oder Privat-Mails (nur gespeichert). Alle Ordner ausser "Geloeschte Elemente" und "Junk-E-Mail", laeuft im Hintergrund mit Fortschrittsanzeige. Grosse Dateien werden ueber den Knopf direkt vom Datentraeger gelesen. .ost-Dateien gehen nicht (nur Zwischenspeicher von Outlook) - dafuer "Mails aus Outlook holen".
+  - Das "Neue Outlook" hat keine Schnittstelle fuer Programme; dann klare Meldung.
+
+v2.4.3
+- Neu: Gmail mit 2-Schritt-Bestaetigung - Anmeldung im Browser wie beim Bank-Login (Modul m98). Gmail nimmt bei eingeschalteter 2-Faktor-Anmeldung fuer den Mailabruf weder das Google-Passwort noch einen Code, nur ein App-Passwort - das holt sich das Programm jetzt selbst:
+  1. Knopf "Mit Google anmelden" (Seite E-Mails oder Einstellungen > E-Mail-Abruf) oeffnet die Google-Seite "App-Passwoerter" in einem eigenen Edge-/Chrome-Fenster (frisches Profil, danach bleibt nichts zurueck).
+  2. Du meldest dich dort ganz normal an: Passwort + 2. Faktor (Handy bestaetigen oder Code). Das Programm sieht weder Passwort noch Code.
+  3. Das Programm traegt "PA Rechnung" ein und klickt "Erstellen", liest das angezeigte App-Passwort ab, prueft es sofort am Gmail-Postfach und speichert es verschluesselt - fuer Abruf UND Versand. Das Fenster schliesst sich.
+  4. Die Mails werden sofort abgerufen und gespeichert (Liste "E-Mails" + Datenordner), danach automatisch alle 15 Minuten. Beim ersten Einrichten werden alle Mails der letzten 60 Tage geholt, nicht nur ungelesene; Gmail selbst bleibt unveraendert.
+- Notweg im selben Dialog: Laesst Google die Anmeldung im Fenster nicht zu, ein selbst erzeugtes App-Passwort einfuegen - gleiche Pruefung und Speicherung.
+- Klarer Hinweis, wenn Google fuer das Konto keine App-Passwoerter anbietet (2-Schritt-Bestaetigung aus, nur Passkey/Sicherheitsschluessel, Erweiterter Schutz).
+
+v2.4.2
+- Sicherheit: Keine persoenlichen Daten mehr im Programmcode. Firma, Anschrift, Bankverbindung, Fusszeilen, Mail-Absender und Standard-Passwort waren als eingebaute Standardwerte im Code; jetzt sind die Standardwerte leer (Modul m97). Beim ersten Start werden die bisherigen Werte einmalig in die Einstellungen deines Datenordners uebernommen - nur fuer Felder, die dort noch nie gespeichert waren. Fuer dich aendert sich nichts, neue Datenordner starten leer.
+- Sicherheit: Standard-Passwort fuer verschluesselte Belege steht nicht mehr im Klartext in der Datenbank - es wird mit einem Schluessel aus deiner PIN verschluesselt (PBKDF2 + AES). Es steht nach der PIN-Eingabe auf jedem PC zur Verfuegung; PIN aendern verschluesselt automatisch neu.
+- Sicherheit: Sperren (Strg+L, Leerlauf-Sperre) sperrt jetzt auch Handy-Upload, Abnahme-Link und Handy-App/REST-API. Wer die Handy-Stoppuhr bei gesperrtem PC weiter nutzen will: Einstellungen > PIN & Sperre > Haekchen "Handy ... auch bei gesperrtem Programm erlauben".
+- Mail-Vorlagen: neue Platzhalter [Inhaber] und [Firma] (Standard-Betreff und -Gruss nutzen sie).
+- Beispieldaten fuer neue Datenordner (assets/seed.json) anonymisiert - keine echten Kundennamen mehr in den Programmdateien.
+
+v2.4.1
+- Behoben: Programm konnte sich beim Oeffnen eines Projekts (oder einer anderen Seite mit mehreren PDF-Vorschaubildern) schlagartig schliessen. Ursache: die PDF-Bibliothek (PDFium) vertraegt keine gleichzeitigen Zugriffe aus mehreren Threads - mehrere Vorschaubilder wurden parallel gerendert. Jetzt laufen alle PDF-Vorschauen, Drucke, Texterkennung und Briefvorschauen nacheinander (Modul m96).
+- Neu: Gesamt-Handbuch v2.4.1 - das ganze Programm Seite fuer Seite, Knopf fuer Knopf (ersetzt alle bisherigen Handbuecher und Nachtraege).
+
+v2.4.0
+- Neu: Bank-Login im Browser (Modul m94) - fuer Banken ohne FinTS, allen voran die C24 Bank. Das Programm oeffnet das normale Online-Banking (C24: https://banking.c24.de) in einem eigenen Edge-/Chrome-Fenster, du meldest dich dort an (QR-Code mit der C24-App scannen bzw. in der App freigeben), das Programm liest Kontostand und Umsaetze mit und uebernimmt sie.
+- Keine Registrierung, keine App-ID, kein Schluessel noetig. Das Programm sieht weder Passwort noch PIN.
+- Umsaetze laufen durch dieselbe Pruefung wie beim FinTS-Abruf: Doppelte werden erkannt, eindeutige Zahlungseingaenge automatisch gebucht, der Rest wartet im Bank-Abgleich. Kontostand wird gespeichert (Uebersicht, Liquiditaet).
+- Live-Dialog: zeigt Schritt fuer Schritt, was passiert, und den erkannten Kontostand/Umsatz-Zeitraum; uebernimmt auf Wunsch automatisch, sobald alles da ist.
+- Knoepfe: "Kontostand & Umsaetze holen (C24 Bank)" im Bank-Abgleich, "Von C24 Bank holen" an der Kontostand-Kachel, "Jetzt ... holen" im Reiter Bankabruf.
+- Einstellungen > Bankabruf: Karte "Bank-Login im Browser" (Adresse, Geraet merken, automatisch buchen, gemerktes Geraet loeschen). PSD2 bleibt als Alternative.
+- Rohdaten der letzten 5 Abrufe unter Datenordner\Bankzugang\rohdaten (Fehlersuche, falls die Bank ihre Seite umbaut).
+- Ohne neue Bibliothek: WebSocket- und DevTools-Anbindung sind eingebaut.
+- Behoben: E-Mail-Abruf mit Gmail meldete "[AUTHENTICATIONFAILED] Invalid credentials", obwohl der Versand ging (Modul m95). Ursachen: "Verbindung testen" hat ein neu eingetipptes Passwort nicht gespeichert; ein altes gespeichertes Abruf-Passwort wurde immer wieder benutzt, das funktionierende Versand-Passwort nie probiert.
+  Jetzt: Gmail-App-Passwort ohne Leerzeichen, Benutzer ohne @ wird zu ...@gmail.com; Anmeldung probiert eingetipptes -> gespeichertes Abruf- -> Versand-Passwort (gleiche Adresse), das funktionierende wird gespeichert; ein eingetipptes Gmail-App-Passwort gilt danach fuer Abruf UND Versand. Klare Meldung, wenn keins passt (z. B. App-Passwort nach Aenderung des Google-Passworts ungueltig).
+
+v2.3.1
+- Neu: Die Bank deiner Rechnungen (IBAN unter Einstellungen > Firma & Bank) wird fuer den Bankabruf automatisch uebernommen - beim Programmstart und beim Oeffnen der Einstellungen.
+  - Bank mit FinTS: Bankleitzahl und FinTS-Server sind sofort eingetragen, es fehlen nur Benutzerkennung, PIN und Produkt-Registrierungsnummer.
+  - Bank ohne FinTS (z. B. C24 Bank): Hinweis oben im Reiter Bankabruf, der FinTS-Zugang wird ausgeblendet, PSD2 ist mit dieser Bank vorbelegt ("Zur PSD2-Einrichtung").
+- Konto: beim Verbinden (FinTS und PSD2) wird automatisch das Konto mit der Rechnungs-IBAN gewaehlt.
+- Aendert sich die IBAN in Firma & Bank, zieht die Bank im Bankabruf mit - solange du dort nicht selbst eine andere Bank gewaehlt hast.
+
+v2.3.0
+- Neu: Bank-Bibliothek (Modul m93, Datei assets/banken_de.json): alle 3.506 deutschen Bankleitzahlen mit Name, BIC und Ort (Stand Deutsche Bundesbank 2026), dazu fuer 2.151 Bankleitzahlen die FinTS-Server-Adresse.
+- Einstellungen > Bankabruf: Bank wird jetzt GEWAEHLT statt BLZ abzutippen - "Bank waehlen ..." mit Suche nach Name, Ort, BLZ, BIC oder IBAN (Pfeiltasten + Enter). Knopf "Meine Bank" uebernimmt die Bank zur IBAN aus Firma & Bank.
+- FinTS-Server als Auswahl: Adresse aus der Bankliste wird automatisch vorgeschlagen, dazu die bekannten Server; "Eigene Adresse eingeben ..." bleibt fuer Sonderfaelle. Volks-/Raiffeisenbanken auf die heutige Atruvia-Adresse umgestellt, ING auf fints.ing.de.
+- Kunden-ID als Auswahl ("wie Benutzerkennung" oder eigene), Hinweis zur Benutzerkennung je Bankgruppe (Sparkasse, Volks-/Raiffeisenbank).
+- TAN-Verfahren und TAN-Medium: die von der Bank angebotenen Verfahren werden beim Verbinden gespeichert und sind danach in den Einstellungen waehlbar.
+- Erster Abruf: Zeitraum als Auswahl (30 bis 730 Tage).
+- Bankwechsel setzt TAN-Verfahren, Konten und Bankparameter automatisch zurueck.
+- PSD2 (Enable Banking): Bank als Auswahlliste, wird automatisch geladen, sobald App-ID und Schluessel gespeichert sind (volle Liste statt 300 Eintraege).
+- Nur noch einzutippen: Benutzerkennung, PIN und einmalig die Produkt-Registrierungsnummer.
+
+v2.2.1
+- Behoben: Update v2.2.0 wurde vom Selbsttest abgelehnt ("m88: Anfrage ohne Token liefert 423 statt 401"). Die PIN-Sperre hat auch die Test-Instanz des Selbsttests gesperrt, in der nie eine PIN eingegeben werden kann. Der Selbsttest-Durchlauf (eigene Testumgebung mit Wegwerf-Datenordner) ist jetzt von der LAN-Sperre ausgenommen; im echten Programm gilt die Sperre unveraendert.
+
+v2.2.0
+- Neu: PIN-Sperre (Modul m92). Das Programm laesst sich nur noch mit einer sechsstelligen PIN oeffnen - kein anderer Zugang.
+- Erster Start nach dem Update: PIN festlegen (zweimal eingeben). Danach bei jedem Programmstart PIN-Abfrage.
+- Die Sperre sitzt im Programm-Server: ohne PIN gibt es nur die Sperrseite; alle Daten-, Upload- und Export-Anfragen werden abgelehnt.
+- Handy-Upload, Abnahme (Unterschrift) und REST-API/Handy-App antworten "gesperrt", bis nach dem Programmstart einmal am PC die PIN eingegeben wurde.
+- PIN wird nur als Hash gespeichert (PBKDF2-SHA256, Salz). Nicht erlaubt: lauter gleiche Ziffern, fortlaufende Folgen (123456, 654321 ...).
+- Schutz gegen Durchprobieren: 4 Fehlversuche frei, danach 30 s Wartezeit, verdoppelt je Fehler bis max. 15 min. Gilt auch ueber einen Neustart hinweg.
+- Sperren jederzeit: Knopf "Sperren" unten in der Seitenleiste oder Strg+L. Optional automatische Sperre nach Leerlauf (Einstellungen > PIN & Sperre).
+- Einstellungen > PIN & Sperre: PIN aendern (bisherige PIN noetig), Leerlauf-Sperre einstellen.
+- Kein "PIN vergessen": ohne PIN laesst sich das Programm nicht oeffnen.
+
+v2.1.1
+- Behoben: Stoppuhr - ein Start am PC ueberschrieb eine laufende Stoppuhr ohne Meldung (Zeit ging verloren); zwei gleichzeitige Starts (PC + Handy) liefen beide durch. Jetzt gesperrt mit klarer Meldung.
+- Behoben: Verlauf zeigte ein Storno als "2x Rechnung angelegt" - jetzt "Storno erstellt: <Nr>".
+- Behoben: Bankabruf (FinTS und PSD2) holte bei Folgeabrufen nur 5 Tage zurueck - spaet nachgebuchte Kartenumsaetze konnten fehlen. Jetzt 30 Tage, Doppelte werden weiter erkannt.
+- Behoben: Steuer-Ruecklage rechnete in den ersten Januartagen eine fruehe grosse Zahlung bis zum 20-fachen hoch. Jetzt: bisheriger Gewinn + Vorjahresgewinn anteilig fuer den Rest des Jahres (ohne Vorjahr hoechstens x6,7).
+- Behoben: "Rechnung aus Stunden" hinterliess beim Verwerfen des Entwurfs einen verwaisten Stundennachweis - solche Anlagen (nie einer Rechnung zugeordnet, aelter als 14 Tage) wandern beim Programmstart in den Papierkorb.
+- Behoben: PSD2-Freigabe - Ruecksprung auf "localhost" konnte bei Browsern, die zuerst IPv6 (::1) nehmen, ins Leere laufen; der Empfang lauscht jetzt auf IPv4 und IPv6.
+- Sicherheit: Anfragen, die eine fremde Webseite im Hintergrund an das Programm schickt (Bild, Skript, Formular), werden abgelehnt (Sec-Fetch-Site: cross-site); vorher konnte eine fremde Seite z. B. den CSV-Export ausloesen.
+
+v2.1.0
+- Neu: Wiederherstellen - zurueckgenommene Schritte lassen sich wiederherstellen: Strg+Y oder Strg+Umschalt+Z, Knopf "Wiederherstellen" im Hinweis nach dem Zuruecknehmen, auf der Seite Verlauf (einzeln oder "bis hierhin wiederherstellen"). Der Stand wird exakt wieder hergestellt (Zeilen, Dateien aus dem Papierkorb, Nummernkreise). Sobald du etwas Neues aenderst, verfaellt der Wiederherstellen-Stapel.
+- Mehrere Schritte ("bis hierhin zuruecknehmen" / "bis hierhin wiederherstellen") laufen jetzt als ein geschuetzter Vorgang: andere Fenster, die Schnittstelle (Handy/REST) und Hintergrund-Ablaeufe warten so lange; scheitert ein Schritt, wird alles auf den Stand davor zurueckgesetzt (alles oder nichts) und die Meldung nennt den Schritt und den Grund.
+- Wiederherstellen steht wie Zuruecknehmen im GoBD-Aenderungsprotokoll; gleiche Sperren wie beim Zuruecknehmen (Kassenabschluss nie, festgeschriebene Rechnungen nur mit "Rechnungen frei korrigieren", Mail-/API-Protokolle werden nie veraendert).
+- Neu: Zuschnittliste rechnet die Stabaufteilung jetzt optimal (exakte Suche, max. ca. 1 s je Profil; bei sehr vielen Teilen beste gefundene Loesung) - spart oft einen Stab (z. B. 4 x 1500 + 2 x 2500 mm: 2 statt 3 Staebe). Anzeige "Minimum rechnerisch" und "Aufteilung optimal", Verschnitt in % des eingesetzten Materials.
+- Neu: Reststuecke im Lager je Profil eintragen (Zuschnittliste > "Reststuecke im Lager") - sie werden zuerst verplant (Kennzeichnung "R 4000" in Ansicht, PDF und Excel).
+- Schnittfuge exakt: zwischen zwei Teilen eine Fuge, hinter dem letzten Teil nur, wenn ein Rest abgeschnitten wird; Rest = wirklich nutzbares Reststueck.
+- Neu: Storno einer teilbezahlten Rechnung nennt die bereits erhaltenen Zahlungen (Datum, Betrag) und den zu erstattenden Betrag; die Storno-Rechnung bleibt mit der Erstattung als offenem Betrag stehen (z. B. -300,00 EUR). Der nie gezahlte Teil wird auf der Storno-Rechnung ausgebucht. Erstattung buchen (Zahlung zur Storno-Rechnung) schliesst sie. EUER: erhaltene Zahlung = Einnahme, Erstattung = Abfluss beim Bezahlen - nichts doppelt. Englische Dokumente bekommen den Text auf Englisch.
+- Behoben: Unter Windows konnte ein zweites Programm denselben Port wie das Programm (Hauptfenster, Beleg per Handy) zusaetzlich belegen, ohne Fehlermeldung. Alle Server belegen ihren Port jetzt exklusiv; die Port-Suche von "Beleg per Handy" greift dadurch wirklich.
+
+- Code aufgeraeumt: 10 tote Doppel-Funktionen (alte, nie mehr benutzte Fassungen), unbenutzte Funktionen, Importe und Variablen entfernt; Verhalten nachweislich unveraendert (Referenzvergleich mit 5 Demo-Datenbestaenden).
+- Behoben (Kalender): Abo-Adresse fuers Handy wurde nie angezeigt - jetzt Knopf "Abo-Adresse erzeugen"; Abo-Zugaenge oeffnen nur noch den Kalender (vorher voller Lesezugriff auf Rechnungen/Kunden - alte Abo-Links unter Schnittstelle & Handy widerrufen und neu erzeugen).
+- Behoben (Rechnungen): gleichzeitiges Stornieren erzeugte doppelte Storno-Rechnungen; gleichzeitiges Speichern brach ab; Doppelklick auf "-> Rechnung" erzeugte mehrere Rechnungen; festgeschriebene Rechnung liess sich auf Entwurf setzen; Anlagen an festgeschriebene Rechnungen; langer Kopf-/Fusstext, lange Woerter und Rechnungsnummern liefen im PDF ueber; Preise mit 3-4 Nachkommastellen wurden gerundet angezeigt.
+- Behoben (Steuer): Kirchensteuer bei Gewerbesteuer zu niedrig (par. 51a EStG); Grenzsteuersatz bei Zusammenveranlagung; GWG-Grenze fuer Kleinunternehmer brutto statt netto; Pendlerpauschale bei zwei Fahrten am selben Tag doppelt; Liquiditaetsvorschau ohne Teilzahlungen; Excel-Formel-Einschleusung im Uebersichtsblatt; Statistik-Reiter blieben nach Aenderungen veraltet. Tarif, Soli, Pendlerpauschale 2024-2026 gegen offizielle Werte geprueft.
+- Behoben (Belege/Mail): eigene E-Rechnung im Eingangsordner wurde als zweite Einnahme gebucht; Liefer- statt Rechnungsdatum, Zwischensumme statt Endsumme, englische Betraege/Daten; Kategorien trafen mitten im Wort ("Total" -> Fahrtkosten); USD-Belege als EUR; passwortgeschuetzte ZUGFeRD-PDFs; IMAP-Ordner mit Umlaut; Handy-Upload pruefte Dateiinhalt nicht.
+- Behoben (Bank/Abos/Mail/Backup): ING-Kontoauszug (Datum als Betrag); DKB-Empfaengername; Abo- und Wartungsrechnungen rutschten nach Monatsende dauerhaft auf den 28.; Fixkosten-Tag sprang; abgelehnte Kundenadresse galt als versendet; Voll-Backup nur sonntags; Pfad-Ausbruch beim Projekt-Upload.
+- Behoben (Abschlag/E-Rechnung/Lager/Druck): Schlussrechnung bei Regelbesteuerung falsch; ZUGFeRD-PDF zeigte andere Summe als die eingebettete XML; Aufmass nach Storno nicht neu abrechenbar; Soll/Ist bei USt brutto; beidseitiger Druck mit mehreren Kopien; Druck nur noch aus dem Datenordner; kaputtes Uebersichts-Layout legte die Startseite lahm. XRechnung mit KoSIT-Validator 3.0.2 geprueft: alle Faelle gueltig.
+- Behoben (neue Module): doppelte Zahlungsbuchung bei Doppelklick; Storno nach Skonto forderte zu viel Erstattung; DATEV ohne Teilzahlungen stornierter Rechnungen und mit falschem Geldkonto bei Bank+Bar; UStVA Soll nach Storno; Rueckgaengig einer Bankzuordnung liess die Buchung verschwinden; Mahnlauf-Doppelklick; Zahlungseingaenge 30x schneller bei vielen Daten.
+- Sicherheit: Datei-Routen nur noch im Datenordner, Kundennamen in der Liquiditaetsgrafik maskiert, CSV-Export mit Semikolon/Formeln abgesichert, Windows-reservierte Dateinamen (CON, NUL ...) abgefangen.
+- EXE: Zeitzonen-Daten (tzdata) und tkinter werden mit eingebaut; Prozentzeichen im Ordnernamen beim automatischen EXE-Bau. Starter v2.1.0.
+
+v2.0.19
+- Neu: EXE erneuert sich selbst - nach jedem eingespielten Update baut das Programm auf dem PC automatisch die passende neue EXE (Python + PyInstaller, unsichtbar im Hintergrund). Beim Schliessen (oder Knopf "Jetzt tauschen und neu starten") wird die alte EXE ersetzt, alte EXE nach Programm\exe_alt, Verknuepfungen auf Desktop, Startmenue, Autostart und Taskleiste werden umgebogen; bei Fehler bleibt die alte EXE. Einstellungen > EXE. Update-Dateien enthalten ab jetzt Starter und requirements (Ordner build).
+- Neu: Zahlungseingaenge (Finanzen) - Bankbuchungen aus FinTS, PSD2 und Kontoauszug werden offenen Rechnungen automatisch zugeordnet; sichere Treffer direkt gebucht, unsichere unter "Zu pruefen". Teilzahlungen mit Restbetrag ueberall (Listen, Editor, Mahnung), Skonto (Standard und je Rechnung, Platzhalter [Skonto] ...), EUER zaehlt Teilzahlungen nach Zahlungsdatum.
+- Neu: Mahnlauf (Finanzen) - alle ueberfaelligen Rechnungen mit vorgeschlagener Stufe, ein Knopf erstellt und mailt alle Mahnungen, ohne Mail-Adresse Sammel-PDF; Verzugszinsen nach par. 288 BGB (9 bzw. 5 Prozentpunkte ueber Basiszinssatz) und 40-EUR-Pauschale fuer Unternehmen; GiroCode jetzt auch auf Mahnungen (exakter Mahnbetrag); Protokoll aller Laeufe.
+- Neu: Angebote - Status offen/angenommen/abgelehnt (mit Grund)/abgelaufen, Wiedervorlage, Nachfass-Mail mit Angebots-PDF, Annahmequote und Volumen je Bereich und Kunde.
+- Neu: Anlagenakte (Projekte) - Raeume je Kunde mit Geraeten (Seriennr., Firmware, IP, MAC, VLAN, Garantie, Wartung), Dateien (Q-SYS, Crestron, Plaene, Fotos), Service-Einsaetze -> Servicerechnung, Erinnerungen, Suche ueber alle Geraete, Import/Export Excel/CSV, PDF-Anlagenbericht.
+- Neu: Pruefungen (Projekte) - Pruefprotokolle DGUV V3 (Grenzwerte DIN VDE 0701-0702, automatische Bewertung), DGUV V17/Rigging, Anschlagmittel, Leitern und eigene Pruefarten; Plaketten-Nr., Fristen, PDF-Protokoll, Sammelprotokoll, Abrechnen als Rechnungsentwurf, Pruefgeraete mit Kalibrierung.
+- Neu: EN 1090 (Projekte) - Ausfuehrungsklasse, Bauteile mit WPS/Schweisser/Pruefumfang, WPS-/WPQR-Bibliothek, Werkstoffzeugnisse 3.1 je Charge, Zusatzwerkstoffe, Pruefungen VT/MT/PT/UT/RT, Leistungserklaerung (DoP) und CE-Kennzeichnung als PDF, Uebergabepaket als PDF und ZIP.
+- Neu: Abnahmeprotokoll mit Unterschrift auf Handy/Tablet per QR-Code oder am PC, PDF mit Zeitstempel und Pruefsumme im Projekt, Maengelliste mit Fristen, Hinweis bei Schlussrechnung ohne Abnahme.
+- Neu: Inventor-Stueckliste je Projekt - Datei wird ueberwacht und bei Aenderung neu eingelesen (neu/geaendert/entfernt), Kalkulation rechnet automatisch neu, Lagerabgleich mit Reservieren/Entnehmen, Bestellliste je Lieferant (PDF/Excel/Mail-Text), Zuschnittliste mit Stabaufteilung.
+- Neu: DATEV-Export (EXTF 700, SKR03/SKR04, Belege als ZIP) und Ausfuellhilfe Anlage EUER (Zeile/Kennzahl/Betrag) und Anlage N, auch im Jahresbericht-PDF.
+- Neu: Regelbesteuerung vorbereiten und umstellen (Einstellungen > Umsatzsteuer) - ohne Stichtag alles wie bisher; ab Stichtag USt je Position, Netto/USt/Brutto im PDF, E-Rechnung Kategorie S, Umsatzsteuer-Voranmeldung mit Faelligkeit, Vorsteuer aus Belegen, "Was waere wenn".
+- Neu: Kassenbuch (Finanzen) - Kassen, Bareinnahmen/-ausgaben, Einlage/Entnahme/Geldtransit, laufender Bestand, Zaehlprotokoll mit Abschluss (danach nur Storno, GoBD), Uebernahme von Bar-Rechnungen, jeder Betrag zaehlt in der EUER genau einmal.
+- Neu: Englische Dokumente und Fremdwaehrung je Kunde/Dokument (englische Beschriftungen, Datum, Zahlenformat, par. 19-Hinweis; EZB-Tageskurs, Statistik bleibt in EUR).
+- Neu: Kundenakte (Stammdaten) - alles zu einem Kunden auf einer Zeitleiste mit Kennzahlen, Telefonnotizen und Wiedervorlagen.
+- Neu: Kalender in beide Richtungen - eigene Termine, Programm-Termine (Faelligkeiten, Wartung, Nachweise ...), aus Terminen Fahrt/Zeit/Rechnung/Unterrichtsstunde, ICS-Datei und ICS-Abo.
+- Neu: Eigene Felder fuer Kunden, Projekte, Bausteine, Belege, Rechnungen und Lager (Spalten, Filter, Platzhalter {{Feld:Name}}, Exporte).
+- Neu: Automatik "Wenn - dann" (Stammdaten) mit Testlauf, Protokoll und Vorlagen.
+- Neu: Gespeicherte Ansichten in den Listen, auch als Kachel auf der Uebersicht.
+- Neu: Rueckgaengig - Knopf nach jeder Aenderung, Strg+Z, Seite "Verlauf" mit den letzten 50 Aktionen (inkl. Dateien aus dem Papierkorb und Nummernkreisen).
+- Neu: Schnittstelle & Handy - REST-API mit Tokens (Beispiele fuer curl, PowerShell, Q-SYS Lua, Crestron) und Handy-App (PWA) per QR-Kopplung: offene Posten, Kunden, Stoppuhr, Fahrt, Beleg fotografieren, Kennzahlen.
+- Belege, die im Kassenbuch stehen, lassen sich nur noch dort loeschen oder stornieren (sonst zaehlte das Kassenbuch sie weiter, die EUER nicht).
+- Oberflaeche: Symbole ausserhalb von Knoepfen werden nicht mehr als grosses schwarzes Quadrat gezeichnet; viele Einstellungs-Reiter brechen als Ganzes in eine zweite Zeile um.
+- Gesamtpruefung vor Auslieferung: alle neuen Module von unabhaengigen Pruefern getestet (Rechenwege, Doppelzaehlung, Windows-Pfade, Gleichzeitigkeit) - deutsche EUR-Rechnungen, PDFs, E-Rechnung und alle Summen ohne Stichtag identisch zu v2.0.18.
+
+v2.0.18
+- Behoben: Drucken unter 64-Bit-Windows brach ab mit "argument 1: OverflowError: int too long to convert" - alle Windows-Druckfunktionen (gdi32, winspool, shell32) mit vollstaendigen Typangaben fuer 64-Bit-Handles.
+- Behoben: Gmail-Anmeldefehler wurde als "Server hat die Anmeldung abgebrochen" gemeldet - Anmeldung jetzt mit genau einem Verfahren, dadurch kommt die echte Antwort des Servers (z. B. 5.7.8 Benutzer/Passwort falsch) mit klarer Meldung.
+- Erfolgreiche Test-Mail setzt "Letzter Versand" auf OK; die Zeile wird nach dem Test sofort aktualisiert.
+
+v2.0.17
+- Neu: Blanko-Vordrucke - Dokument ohne Positionen (neu oder Entwurf) wird ohne Vermerk ENTWURF, ohne Nummer und ohne Speichern gedruckt.
+- Rechnungen/Angebote koennen ohne Positionen und ohne Kunde/Anschrift gespeichert werden, Briefe ohne Empfaenger.
+- Behoben: "Mail-Passwort laesst sich nicht entschluesseln" - Passwoerter (Mail, IMAP, FinTS-PIN, Backup, Kalender, Microsoft, Bank) werden je PC und Windows-Benutzer verschluesselt; derselbe Datenordner funktioniert auf mehreren PCs, wenn das Passwort auf jedem PC einmal eingetragen wird. Aenderung auf einem PC verwirft die veralteten Eintraege der anderen.
+- Erfolgreiche Test-Mail mit eingetipptem Passwort speichert das Passwort automatisch; rote Meldung am Passwort-Feld, wenn das gespeicherte Passwort von einem anderen PC stammt.
+
+v2.0.16
+- Neu: Rasterfang auf der Uebersicht - Kacheln bleiben frei platzierbar, rasten aber beim Verschieben und beim Groesse-Ziehen im Raster ein (Rasterweite 8/12/16/24/32/48 px, Standard 16 px).
+- Neu: Kantenfang - Kanten anderer Kacheln werden gefangen (buendig oder mit 16 px Abstand daneben), Hilfslinien beim Ziehen; hat Vorrang vor dem Raster.
+- Alt gedrueckt halten = vorruebergehend ohne Fang; Knopf "Am Raster ausrichten" setzt alle Kacheln einer Seite aufs Raster; Fangraster als Punkte im Anpassen-Modus.
+
+v2.0.15
+- Neu: Uebersicht frei gestalten - Kacheln ohne Raster und ohne Andocken pixelgenau an der Leiste verschieben, Groesse an der Ecke unten rechts frei ziehen (Breite und Hoehe), Kacheln duerfen ueberlappen, Knopf "nach vorn", Knopf automatische Hoehe.
+- Umschalter Frei/Raster je Uebersichts-Seite; bestehende Anordnung wird beim ersten Anpassen 1:1 uebernommen, neue Seiten starten frei.
+- Neue und kopierte Kacheln werden unter bzw. versetzt neben die vorhandenen gelegt; Positionen bleiben auch bei Programm-Zoom exakt.
+
+v2.0.14
+- Neu: Direkt drucken - Knopf "Drucken" und Strg+P im Editor von Rechnung, Angebot, Auftragsbestaetigung, Storno, Brief und Dokument aus Vorlage; Sammeldruck ueber die Auswahl in der Rechnungsliste. Druck-Dialog mit Drucker, Kopien, Seiten, beidseitig, schwarzweiss, Anlagen; "kuenftig ohne Dialog" (Umschalt+Klick zeigt ihn wieder). Gedruckt wird direkt ueber Windows (kein PDF-Programm noetig); Word-/LibreOffice-Dokumente ueber das jeweilige Programm.
+- Entwuerfe werden mit Vermerk ENTWURF gedruckt und nicht festgeschrieben; fertige Rechnungen werden beim Drucken wie beim PDF gespeichert und festgeschrieben.
+- Neu: Rechnungen frei korrigieren und loeschen (Einstellung, Standard an): "Bearbeiten" hebt die Festschreibung auf, "Loeschen" im Editor und in der Liste auch fuer festgeschriebene Rechnungen; PDF in den Papierkorb, zuletzt vergebene Nummer wird wieder frei, Storno geloescht -> Original wieder offen, Original geloescht -> Storno mit; alles bleibt im GoBD-Protokoll.
+
+v2.0.13
+- Neu: Schrift des Programms selbst waehlbar (Einstellungen > Dokumente > "Schrift des Programms", oder im Anpassen-Modus "Schrift ..."): eine Schrift fuer Text, Menues und Tabellen, eine fuer Ueberschriften und Zahlen-Kacheln ("wie Text" moeglich); Auswahl aus dem Schriften-Ordner und allen in Windows installierten Schriften; Groesse der ganzen Oberflaeche 80-150 %. Wirkt sofort, gespeichert im Datenordner.
+
+v2.0.12
+- Neu: Oberflaeche frei gestalten ("Oberflaeche" unten im Menue oder Strg+Umschalt+L). Menue-Rubriken (Stammdaten, Projekte, Finanzen ...) koennen links, rechts, oben (waagerecht) oder unten angedockt oder als freies Fenster irgendwo auf dem Bildschirm platziert werden - mit Einrasten an Bildschirmkanten, Seitenleisten, anderen Fenstern und 8-px-Raster; Fenster verschieben, Groesse ziehen, einklappen, per Klick wieder andocken.
+- Menue-Eintraege zwischen Rubriken ziehen (auch Logo, Suche, Timer, Hell/Dunkel), ausblenden und wieder einblenden; Rubriken anlegen, umbenennen, einfaerben, Trennlinie, aufloesen; Breite der Seitenleisten ziehen.
+- Editor-Bereiche (Bausteine, Arbeitsbereich, Vorschau) in Rechnung/Angebot/AB/Brief: links/rechts/oben/unten andocken oder frei schweben, Groesse per Trennlinie; bei kleinem Fenster schrumpfen angedockte Bereiche automatisch.
+- Anordnung wird im Datenordner gespeichert; "Zuruecksetzen" stellt die Standard-Anordnung wieder her.
+- Schriftarten (Korrekturen zu 2.0.11): ZUGFeRD-Export nutzt die gewaehlte Schrift; vor 2.0.11 festgeschriebene Rechnungen bleiben in Helvetica; Angebote werden beim Mailversand nicht mehr auf eine Schrift festgelegt; Umwandeln (Angebot > AB > Rechnung) uebernimmt die Schrift; Schrift-Wahl bleibt erhalten, wenn die Schrift kurz fehlt; Entfernen einer Schrift fragt nach, verschiebt alle Dateien der Familie und ist gesperrt, solange festgeschriebene Rechnungen sie nutzen; Neu-Einlesen ohne Zwischenzustand; Windows-Schriftenliste blockiert das Programm nicht mehr.
+
+v2.0.11
+- Neu: Schriftarten fuer alle Dokumente. Ordner "Schriften" im Datenordner (.ttf/.otf/.ttc, auch Unterordner, ZIP-Import, Hineinziehen, "Aus Windows uebernehmen" mit Suche); Familien werden automatisch erkannt (Normal, Fett, Kursiv, Fett kursiv), nicht einbettbare Dateien (CFF-OpenType, Lizenz-Sperre) werden mit Grund gemeldet.
+- Wahl der Schrift: Standard fuer alle Dokumente (Einstellungen > Dokumente), je Projekt (Projektseite oben) und je Dokument (Feld "Schrift" im Editor fuer Rechnung, Angebot, Auftragsbestaetigung, Storno; im Brief-Editor fuer das eigene Briefpapier). Live-Vorschau, Probeseite je Schrift.
+- Gilt fuer alle PDFs: Rechnungen, Mahnungen, Briefe, Kalkulation, Uebergabe-Doku, Jahresbericht, Statistik, Exporte, Verfahrensdoku. Schriften werden eingebettet.
+- Festgeschriebene Rechnungen behalten ihre Schrift (Nachdruck identisch, GoBD); Storno und Umwandeln (Angebot > Auftrag > Rechnung) uebernehmen die Schrift.
+
+v2.0.10 (Fehlerbehebung zu 2.0.9)
+- E-Mail mit Microsoft-Anmeldung: Rechnungen/Mahnungen per Mail gingen nicht ("E-Mail noch nicht eingerichtet"), obwohl die Test-Mail klappte - behoben.
+- E-Mail-Abruf (IMAP): Auswahl "Anmeldung am Postfach" (Passwort / Microsoft-Konto) erscheint jetzt im Reiter E-Mail-Abruf; automatischer Abruf und Status funktionieren auch mit Microsoft-Anmeldung.
+- Microsoft-Anmeldung: zweimal gestartet stoeren sich die Anmeldungen nicht mehr (kein falsches "abgelaufen" trotz Erfolg).
+- Dauerfahrten: Bearbeiten einer Vorlage (anderer Wochentag, Feiertage, wieder aktiv) und Wechsel des Bundeslands tragen keine vergangenen Fahrten mehr doppelt nach - Aenderungen gelten ab heute.
+- Dauerfahrten: "als Dauerfahrt" legt fuer den Ausgangstag keine zweite Fahrt mehr an (die Fahrt gehoert jetzt zur Vorlage); Doppelklick auf "Auswahl uebernehmen" erzeugt keine doppelten Fahrten; Text "monatlich am ..." stimmt mit den Terminen ueberein.
+- Nachweise: Geburtsdatum wird nicht mehr als Ausstellungsdatum erkannt; Ausstellungs-/Ablaufdatum nach Position im Text (nicht nach Schreibweise); "simple" macht kein Crestron-Zertifikat mehr; "Course name" wird nicht als Person gelesen; Erkennung liest nur Dateien im Datenordner.
+- Bankabruf PSD2 (C24): letzter Abruf wird je Konto gemerkt (Kontowechsel holt wieder den vollen Zeitraum); Freigabe wird nur mit passendem Sicherheitscode angenommen; erneutes Verbinden innerhalb von 15 Min. funktioniert; Abruf per Knopf und automatischer Abruf laufen nie gleichzeitig; nach einem Fehler wartet der automatische Abruf 6 Stunden (PSD2 erlaubt nur wenige Abrufe ohne Freigabe pro Tag).
+
+v2.0.9
+- E-Mail repariert und robuster: Test-Mail prueft die Werte im Formular direkt (vorher wurde evtl. noch mit den alten Werten getestet) und zeigt jeden Schritt (Server gefunden, verbunden, verschluesselt, angemeldet, gesendet); verstaendliche Fehlermeldungen mit Loesung je Anbieter (App-Passwort, POP3/IMAP-Freischaltung bei GMX/WEB.DE, falscher Port/Verschluesselung, Zeitueberschreitung, Zertifikat, Passwort auf anderem PC nicht entschluesselbar).
+- E-Mail: Anbieter-Auswahl fuellt Server/Port aus (Gmail, GMX, WEB.DE, T-Online, Outlook/Hotmail, Microsoft 365, iCloud, Yahoo, IONOS, STRATO, ALL-INKL, Hetzner, mailbox.org, Posteo, freenet); Verschluesselung waehlbar (automatisch/STARTTLS/SSL/keine); STARTTLS nur wenn der Server es anbietet; eigene Absender-Adresse; Leerzeichen im Gmail-App-Passwort werden entfernt; mehrere Empfaenger mit ; oder , getrennt; Passwortfeld wird nicht mehr vom Browser automatisch befuellt.
+- Neu: Microsoft-Konto (OAuth2) fuer Outlook.com/Hotmail/Microsoft 365 - Microsoft hat das einfache Passwort fuer Mailprogramme abgeschaltet; Versand und IMAP-Abruf melden sich jetzt per XOAUTH2 an.
+- IMAP: gleiches Passwort wie beim Versand wird verwendet, wenn fuer den Abruf keins gespeichert ist; Anbieter-Hinweis bei abgelehnter Anmeldung.
+- Neu: Dauerfahrten - wiederkehrende Fahrten als Vorlage (woechentlich an bestimmten Tagen, alle n Wochen, monatlich am Tag X, monatlich am n-ten/letzten Wochentag), von/bis, Feiertage des Bundeslands auslassen, automatisch eintragen oder als Vorschlag bestaetigen; vergangene Termine werden nachgetragen; geloeschte Fahrten kommen nie wieder; Knopf "als Dauerfahrt" an jeder Fahrt.
+- Neu: Bankabruf fuer die C24 Bank (und andere Banken ohne FinTS) ueber die PSD2-Schnittstelle via Enable Banking - Freigabe im Browser bis 180 Tage, Abruf per Knopf oder taeglich automatisch, gleiche Dubletten-Pruefung und Auto-Zuordnung wie der FinTS-Abruf, Kontostand wird uebernommen.
+- Nachweise: rund 40 Zertifikat-Arten - Q-SYS, Crestron, Extron, Audinate Dante, AVIXA CTS, Biamp, Shure, Sennheiser, Bose, Yamaha, d&b, L-Acoustics, Allen & Heath/DiGiCo, Symetrix/ClearOne, AMX/Kramer/Lightware/Barco, Teams/Zoom Rooms, Logitech/Yealink/Poly, Netzwerk (CCNA, AVB/Milan, AES67), KNX, Ableton/Pro Tools/DJ-Software, Rigging, Veranstaltungstechnik, Erste Hilfe, SCC, IWS/IWE ...; eigene Arten frei eintippen oder unter "Arten ..." verwalten.
+- Nachweise: Zertifikat-PDF/Bild wird gelesen - Art, Bezeichnung (z. B. "Q-SYS Level One", "Dante Certification Level 3"), Zertifikats-Nr., Person, Ausstellungs- und Ablaufdatum werden vorgeschlagen.
+
+v2.0.8
+- Neu: Uebersicht selbst gestalten - "Anpassen" oben rechts: Kacheln aus allen Bereichen hinzufuegen (33 Arten: Begruessung/Schnellzugriff, Hinweise, Schnellstart, Notiz, Frag Dr. Jey, Kennzahlen, Monatsverlauf, Kontostand, Liquiditaet, Fixkosten, offene/letzte Dokumente, Angebote, Mahnwesen, Termine/Kalender-Woche/Kalender-Monat, Unterricht + Unterricht-Dateien, Projekte, Nachweise, Wartung & Abos, Lager, Belege, Top-Kunden, Top-Leistungen, Jahresvergleich, KU-Grenzen/-Prognose, Steuer-Schaetzung, Ruecklage).
+- Reihenfolge per Ziehen, Breite 1/4 bis ganz, Einstellungen je Kachel (Jahr, Anzahl, Zeitraum, Auswahl der Kennzahlen/Hinweise/Knoepfe/Seiten), Duplizieren, Entfernen, Zuruecksetzen.
+- Mehrere Seiten (Reiter) auf der Uebersicht; Kachel auf einen Reiter ziehen = dorthin verschieben.
+- Gespeichert im Datenordner (auch im Backup); Kacheln ohne Inhalt hinterlassen keine Luecke; jede Kachel laedt fuer sich.
+
+v2.0.7
+- Neu: Kalender als eigener Reiter direkt unter "Uebersicht" - der komplette TimeTree-Kalender wird heruntergeladen und im Programm gespeichert: alle Kalender (auch geteilte), Labels mit Farben, Termine mit Wiederholungen (taeglich, woechentlich, n-ter Wochentag, jaehrlich, bis/Anzahl, Ausnahmen), Notizen, Orte, Links.
+- Ansichten Monat, Woche (Zeitraster) und Liste, Suche, Kalender ein-/ausblenden, Termin-Details (Ort auf der Karte, Links), Tagesliste.
+- Abruf per Knopf oder automatisch (15 Min. bis taeglich); Anmeldung mit TimeTree-E-Mail + Passwort (verschluesselt gespeichert, nie in der Oberflaeche/Backup im Klartext). Nur lesend - in TimeTree wird nichts geaendert.
+- .ics-Import (z. B. bei Google/Apple-Anmeldung in TimeTree, oder Google/Outlook/iCloud-Kalender) und Export aller Termine als .ics (Datenordner > Export).
+- Neu: Unterricht > Reiter "Dateien" - Dateiablage je Kurs, je Schueler/in und als allgemeines Material (Datenordner > Unterricht), mit Datum der Stunde, Notiz und automatisch erkannter Art (Noten, Audio, Video, Foto, Dokument, Session-Datei); hineinziehen oder waehlen, oeffnen, im Ordner zeigen, umbenennen, auf anderen Kurs/Schueler ziehen = verschieben, Ordner abgleichen (im Explorer abgelegte Dateien), Loeschen in den Papierkorb im Datenordner, Sammelaktionen.
+- Kurskarten und Schuelerliste mit Knopf "Dateien".
+
+v2.0.6 (Fehlerbehebung + schneller)
+- Schneller: Datenbank im WAL-Modus (Speichern ohne Journal-Datei pro Vorgang - unter Windows mit Virenscanner deutlich schneller; auf Netzlaufwerken bleibt der alte Modus), 45 Indizes auf allen Verknuepfungen (Rechnung oeffnen ca. 5x, Rechnung speichern ca. 9x schneller), daten.sqlite wird alle 30 s und beim Beenden auf Stand gebracht (Cloud-Sync/Kopie).
+- Schneller: Statistik, Jahresbericht und Exporte rechnen EUER/Steuer nicht mehr mehrfach pro Jahr; Gehalts-Statistik mit einer statt einer Abfrage je Abrechnung; Dubletten-Suche mit Zwischenspeicher, Datei-Pruefsummen bleiben ueber den Neustart erhalten; GoBD-Protokoll schreibt Aenderung + Protokoll in einem Vorgang.
+- Vorlagen-Scan: beim erneuten Auswaehlen/anderen Laufwerksbuchstaben werden unveraenderte Dateien nicht neu gelesen; hoechstens 40 KI-Fragen pro Scan; optional build_exe_schnellstart.bat (EXE als Ordner, startet mehrere Sekunden schneller).
+- Storno: Positionen werden kaufmaennisch gerundet, auch negativ - Storno ist jetzt exakt -Original (vorher konnten 0,01-0,02 EUR uebrig bleiben).
+- Bank: eine stornierte Rechnung wird durch eine Zahlung nie wieder "bezahlt"; Bankabruf erkennt eine Rechnung nicht mehr nur an "GmbH" im Namen; Fixkosten werden nicht doppelt gebucht, wenn der Beleg schon da ist; Beleg + Bankbuchung zusammengefuehrt behaelt die Verknuepfung.
+- E-Rechnung: eigene ZUGFeRD-Rechnung beim Wieder-Einlesen wird nicht mehr automatisch als Einnahme gebucht (war doppelt); Steuerzeichen (z. B. Umschalt+Enter aus Word) machen XRechnung/Word/LibreOffice/Excel-Dokumente nicht mehr kaputt; die Rechnung wird erst nach erfolgreicher Pruefung festgeschrieben; Angebot steht nicht mehr als "vorherige Rechnung" in der XRechnung.
+- Rechnungs-PDF: sehr lange Positionsbeschreibungen laufen auf der naechsten Seite weiter statt ueber den Rand.
+- Zahlungsziel 0 Tage ("sofort") bleibt 0 (wurde zu 7); Notiz einer Rechnung wird von Unterrichts-Stunden nicht mehr ueberschrieben; Monatsnamen in Rechnungstiteln wieder ausgeschrieben ("November" statt "Nov").
+- Abo-Rechnungen: keine doppelten Entwuerfe mehr bei gleichzeitigem Lauf.
+- Backup: Komplett-Backup enthaelt jetzt den ganzen Datenordner (auch Projekte, Rechnungs-PDFs, Briefe, Dokumente); Sicherung "vor Wiederherstellung" erscheint in der Liste; parallele Backups stoeren sich nicht mehr.
+- Datenordner umziehen: Datenbank wird zuletzt kopiert, danach sind keine Aenderungen mehr bis zum Neustart moeglich (vorher gingen Eingaben waehrend des Kopierens verloren); Pfade werden nur noch als ganzer Ordner ersetzt, das GoBD-Protokoll bleibt unangetastet.
+- Datenpaket einspielen: keine Dateien mehr ausserhalb des Datenordners; gleiche Rechnungs-/Kundennummer aus einer anderen Installation wird nicht mehr vermischt (Hinweis-Liste statt falscher Zahlung).
+- 10-Tage-Regel: Faelligkeit muss zwischen 22.12. und 10.01. liegen (vorher Zahlungen im falschen Jahr); Entwuerfe/Stornos zaehlen nicht als regelmaessiger Kunde.
+- Eingangsordner: nicht lesbare Dateien landen in "Nicht lesbar" statt beim naechsten Start geloescht zu werden.
+- E-Mails: Text bei unbekanntem Zeichensatz bleibt erhalten; fehlgeschlagene IMAP-Mails werden erneut abgerufen; Verschieben loescht keine fremden Mails mehr; STARTTLS-Fehler bricht ab statt das Passwort unverschluesselt zu senden; bereits uebernommene Mails nicht doppelt in der Pruefliste.
+- Briefe/Dokumente: erneutes "Erstellen" ueberschreibt eine in Word bearbeitete Datei nicht mehr (neue Datei "(neu)").
+- Vorlagen: Ordnerwechsel loescht den Katalog nicht mehr (Kategorien bleiben, Briefe zeigen weiter auf die richtige Vorlage); Ordnerwechsel waehrend eines Scans wird sauber nachgeholt.
+- Aufmass: bereits abgerechnete Positionen werden nicht noch einmal berechnet; Anzahl 0 bleibt 0. Lager: Mengenaenderung im Projekt wird nachgebucht, keine doppelte Entnahme.
+- KU-Waechter: keine Fehlwarnung mehr in den ersten Januartagen. Frag Dr. Jey: "Umsatz fuer Maerz" fragt nicht mehr nach einem Kunden "Maerz"; "letzten Monat" im Januar = Dezember Vorjahr; "fuer den Steuerberater bezahlt" = Ausgaben.
+- Oberflaeche: Suche in Rechnungen, Kunden, Projekten und Lager aktualisiert nach kurzer Tipp-Pause (vorher ganze Liste bei jeder Taste, bei 4000 Rechnungen ~3 s); Sortier-Automatik nur noch fuer geaenderte Tabellen; Speichern + PDF mit einem statt zwei Neuladevorgaengen; "Abgelehnt"/"Wieder offen"/"Bezahlt" mit ungespeicherten Aenderungen setzt den Status nicht mehr zurueck; Gueltig-bis/Abo-/Bestaetigungs-Datum zwischen 0 und 2 Uhr nicht mehr einen Tag zu frueh; Symbole in Karten-Ueberschriften wieder klein.
+- Festgeschriebene Dokumente werden bei erneutem PDF/XRechnung immer mit den gespeicherten Positionsbetraegen erzeugt (GoBD); Editor rundet wie das Programm.
+- IMAP: eine dauerhaft fehlerhafte Mail wird hoechstens 3x wiederholt und blockiert keine neueren Mails.
+- Sicherheit: Programmoberflaeche antwortet nur noch Anfragen an diesen Computer (Schutz gegen DNS-Rebinding); Handy-Upload mit Zeitlimit; Export Aenderungsprotokoll komplett (vorher max. 20.000 Eintraege); Summenzeile im Rechnungs-Export nur fuer gleichartige Dokumente.
+
+v2.0.5
+- Neues Dokument: zusaetzlicher Reiter "Aus Vorlage" - alle Vorlagen aus dem Vorlagen-Katalog stehen zur Auswahl (Kategorie-Knoepfe mit Anzahl, Suche, Kategorie/Ordner/Art je Vorlage, Inhaltsauszug rechts).
+- Word (.docx/.dotx/.docm), LibreOffice (.odt/.ott/.ods/.ots) und jetzt auch Excel (.xlsx/.xltx/.xlsm) werden ausgefuellt: Platzhalter wie {{Firma}}, [Datum], {{Kundennummer}}, {{Projekt}}, {{Betreff}}, {{Text}} - in Excel auch in Kopf-/Fusszeile. Ohne Platzhalter wird die Vorlage als Kopie mit Datum angelegt.
+- Alle anderen Vorlagen (PDF, Q-SYS, Crestron, Zeichnungen ...) werden als Kopie angelegt und im passenden Programm geoeffnet - die Vorlage bleibt immer unveraendert.
+- Ablage: mit Projekt im Projektordner (Unterordner nach Dateiart), sonst Datenordner > Dokumente > Jahr. Name "Datum Vorlage - Kunde - Titel".
+- Vorlagen als Baum: Kategorie > Ordner > Unterordner > Vorlage - auf der Seite Vorlagen (Standard, umschaltbar auf Liste), beim neuen Dokument und im Projekt-Dialog "Aus Vorlage ...". Auf-/zugeklappte Ordner werden gemerkt, beim Suchen klappt alles auf; in der Baumansicht "+" = neues Dokument aus dieser Vorlage.
+- Liste heisst jetzt "Briefe & Dokumente" (Spalte Art, Knopf "+ Aus Vorlage").
+
+v2.0.4
+- Neues Dokument: neben Rechnung, Angebot und Auftragsbestaetigung gibt es den Reiter "Brief". Empfaenger aus den Kunden (Anrede wird automatisch vorgeschlagen), Datum, Betreff, Text (Textbausteine einsetzbar), Grussformel, optional Projekt.
+- Briefvorlage waehlbar aus dem Vorlagen-Katalog (Kategorie "Briefe & Anschreiben" zuerst, dann andere Word-/LibreOffice-Vorlagen) oder "Eigenes Briefpapier" (PDF mit Logo, Absender und Fusszeile wie bei Rechnungen, mit Live-Vorschau).
+- Platzhalter in der Vorlage werden ausgefuellt: {{Anschrift}} {{Datum}} {{Betreff}} {{Anrede}} {{Text}} {{Gruss}} {{Inhaber}} u. a. - auch als [Betreff], «Betreff» oder <<Betreff>>, auch in Kopf-/Fusszeile und auch wenn Word den Platzhalter intern zerstueckelt hat; die Formatierung bleibt. Ohne Platzhalter wird der Brief oben in die Vorlage eingefuegt. .dotx/.ott werden zu .docx/.odt.
+- Die Vorlage bleibt unveraendert: der Brief wird als neue Datei gespeichert (Projektordner "Briefe" oder Datenordner > Briefe > Jahr) und geoeffnet. Erneut "Brief erstellen" aktualisiert dieselbe Datei.
+- Rechnungen & Angebote: neuer Reiter "Briefe" mit allen Briefen (Suche, Sortierung, Oeffnen, Im Ordner zeigen, Duplizieren, Loeschen ohne Rueckfrage - die Datei bleibt).
+
+v2.0.3
+- Vorlagen als Katalog: der Vorlagen-Ordner wird gescannt (beim Start automatisch, sonst "Ordner scannen"), jede Datei wird anhand von Dateiname, Ordner, Dateityp und Inhalt einer Kategorie zugeordnet (Angebote & Kalkulation, Rechnungen & Mahnungen, Briefe, Vertraege & AGB, Protokolle & Uebergabe, Checklisten, Formulare, Schweissen & Pruefung, Metallbau & Zeichnungen, AV- & Medientechnik, Unterricht & Kurse, Steuer & Buchhaltung, Praesentationen & Werbung, Sonstiges) - mit Sicherheit in % und Begruendung; bei Unsicherheit optional lokale KI.
+- Es wird nichts kopiert: im Programm stehen nur Verweise, der Ordner bleibt unveraendert. Neue, geaenderte und entfernte Dateien werden erkannt.
+- Doppelte (gleicher Inhalt, egal welcher Name/Ort) werden aussortiert - nur das Original wird gefuehrt, "Doppelte" zeigt die Kopien, "Als Original festlegen".
+- Kategorie umstellen: bleibt bei jedem Scan erhalten und hilft bei aehnlichen Dateien im selben Ordner.
+- Projektseite: "Aus Vorlage ..." holt eine Vorlage direkt ins Projekt; globale Suche (Strg+K) findet Vorlagen nach Name, Ordner, Schlagworten und Inhalt.
+
+v2.0.2
+- Neu: Stammdaten > Vorlagen - einen Ordner mit allen eigenen Vorlagen angeben (Word, Excel, PDF, Zeichnungen, Q-SYS/Crestron ...). Unterordner werden Kategorien, Suche und Sortierung, Oeffnen, "Kopie bearbeiten" (Kopie mit Datum im Datenordner unter Vorlagen-Kopien, Original bleibt unveraendert), "In Projekt" (Kopie in einen Projektordner, Unterordner waehlbar oder automatisch nach Dateiart). Ordner auch unter Einstellungen > Projekte & Kalkulation einstellbar. Ordnerauswahl startet im Downloads-Ordner.
+
+v2.0.1 (Fehlerbehebung)
+- Bankabruf: eine eingegebene TAN (und PIN/Passwoerter) wird nicht mehr von "Eingaben behalten" zwischengespeichert - eine alte TAN haette beim naechsten Abruf einen Fehlversuch bei der Bank verursacht.
+- Gehalt: die einmalige Neu-Einlesung beim ersten Start betrifft nur noch unplausible Abrechnungen und Meldebescheinigungen - von Hand korrigierte Werte und Lohnsteuerbescheinigungen bleiben unveraendert; Belegbetrag nach Neu-Einlesen wieder das Brutto (statt Netto). Knopf heisst "Unplausible Abrechnungen neu einlesen".
+- Backup: das Aufraeumen nach Aufbewahrungsregel loescht keine manuellen Komplett-Backups mehr (die letzten 20 bleiben); Backups in derselben Sekunde ueberschreiben sich nicht mehr.
+- Frag Dr. Jey: offene Erstattungen aus Stornos werden als solche genannt (statt "-230,00 EUR offen" bzw. "nichts offen").
+- Robustheit: Aufmass-Export ohne Projekt, Mail-Detail ohne ID und Statistik-Export mit ungueltiger Gruppierung liefern eine Meldung statt eines Programmfehlers.
+
+v2.0.0
+- Modularer Aufbau: Programmkern + 38 Module (modules/, ui/), neue Funktionen docken ueber Hooks an.
+- Datenordner anzeigen und aendern: umziehen (mit Pruefung jeder Datei, alter Ordner wird archiviert), kopieren oder vorhandene Daten verwenden.
+- Selbsttest: jedes Update wird vor dem Aktivieren mit einer Testdatenbank durchgerechnet; manuell unter Einstellungen > Daten.
+- Backup mit Versionen (taeglich/woechentlich/monatlich), mehrere Ziele, optional AES-256-verschluesselt, Wiederherstellen.
+- E-Mails: .eml/.msg/.mbox hineinziehen oder per IMAP abrufen, Erkennung Rechnung ja/nein mit Begruendung, Uebernahme in die Beleg-Pruefliste, Absender-Lernen.
+- Beleg per Handy: QR-Code, Foto direkt in die Pruefliste (gleiches WLAN).
+- Bankabruf per FinTS/HBCI mit TAN-Dialog, Duplikatschutz, automatischer Zuordnung eindeutiger Zahlungen (braucht neue EXE).
+- Fixkosten: wiederkehrende Ausgaben vormerken, bestaetigen oder per Bankbuchung automatisch verknuepfen, Vorschlaege aus Belegen.
+- Projekte: Abschlags- und Schlussrechnungen, Aufmass mit Formeln, Kalkulation aus Inventor-Stueckliste mit Zuschlaegen und PDF, Lager mit Mindestbestand, Soll/Ist und Deckungsbeitrag je Bereich.
+- E-Rechnung erzeugen: XRechnung 3.0 (CII) und ZUGFeRD-PDF, fuer Kleinunternehmer (Steuerkategorie E).
+- GoBD: Aenderungsprotokoll mit Integritaetspruefung, Verfahrensdokumentation als PDF-Vorlage.
+- Kleinunternehmer-Prognose mit Warnung beim Speichern, Liquiditaetsvorschau 3 Monate, Steuer-Ruecklage live, Frag Dr. Jey (Strg+J).
+- Loeschen ohne Rueckfrage (Standard): Loeschen, Entfernen und Verwerfen passieren sofort, auch bei Sammelaktionen; Rueckfrage wieder einschaltbar unter Einstellungen > Daten > Bedienung.
+- Korrektur Gehalt/Vorsorgeaufwendungen: Sozialversicherungs-Beitraege werden nicht mehr als Bemessungsgrundlage (SV-Brutto) oder aus der Spalte "kumuliert" gelesen, sondern als Beitrag passend zum ueblichen AN-Satz; DEUEV-Meldebescheinigungen werden erkannt und nicht als Monatsabrechnung gezaehlt; Plausibilitaetspruefung (AN-Beitraege > 25 % vom Brutto oder Beitrag >= Brutto -> zaehlen nicht, Warnung im Block Gehalt); vorhandene Abrechnungen werden beim ersten Start einmalig neu eingelesen (alte Werte bleiben gespeichert), Knopf "Gehaltsabrechnungen neu einlesen".
+
+v1.6.6
+- Jahresabschluss: Abweichungen zur Steuererklaerung / zum Bescheid direkt in die Buchhaltung uebernehmen ("Korrigieren"): Betriebseinnahmen (Korrekturbuchung Einnahme), Betriebsausgaben (Korrekturbeleg in waehlbarer EUER-Kategorie), Gewinn (wahlweise ueber Einnahmen oder Ausgaben), Bruttoarbeitslohn und Lohnsteuer (Korrektureintrag Gehalt, Jahreswert), Werbungskosten (Angabe tatsaechlich wird angepasst).
+- Neuer Abgleich Bescheid (Programm / Bescheid / Abweichung) fuer Bruttolohn, Lohnsteuer, Werbungskosten, zvE, ESt, Soli.
+- Liste "Korrekturbuchungen" je Jahr mit Zuruecknehmen; Buchungsdatum frei waehlbar (Standard 31.12.), Betrag aenderbar, Notiz.
+
+v1.6.5
+- Statistik: neuer Reiter "Gehalt (Job)" mit allen Gehaltsabrechnungen - Brutto, Netto, Lohnsteuer, Soli, KiSt, Sozialversicherung; gruppierbar nach Monat, Quartal, Jahr, Arbeitgeber, Art; Filter Monatsabrechnungen / Lohnsteuerbescheinigung; Export Excel und PDF.
+- Liegt fuer ein Jahr eine Lohnsteuerbescheinigung vor, zaehlen deren Jahreswerte (Monatsabrechnungen werden blass angezeigt, nicht doppelt summiert) - wie in der Jahresabrechnung.
+
+v1.6.4
+- Sortieren in allen Listen: Klick auf einen Spaltenkopf sortiert nach Datum, Art, Partner, Nummer, Betrag usw. (1x aufsteigend, 2x absteigend, 3x Ausgangsreihenfolge); Sortierung bleibt gemerkt. Gruppierte Listen (Statistik) sortieren innerhalb der Gruppen. Kundenliste: Name / Kd-Nr. / Ort / Umsatz.
+- Datei- und Ordnerdialoge starten immer im Windows-Ordner "Downloads" (Bekannter Ordner, auch wenn er verschoben wurde), z. B. Belege, Anlagen, Projektdateien, Updates, Import, Logo, Nachweise. Ordnerfelder (PDF-Ordner, Eingangsordner, Backup-Ziel) mit "Durchsuchen ...".
+- Assistent findet doppelte Belege und Rechnungen auch nachtraeglich (gleiche Datei, gleiche Beleg-Nr. + Betrag, gleicher Partner + Datum + Betrag; Rechnungen mit gleichem Kunden, Datum, Positionen und Betrag), schlaegt vor, welcher behalten wird, und entfernt die uebrigen (Dateien in den Papierkorb). "Kein Duplikat" merkt sich die Ausnahme. Festgeschriebene Rechnungen nur per Storno.
+
+v1.6.3
+- Eingaben bleiben stehen - ueberall: Dialoge (z. B. Neuer Kurs, Schueler, Beleg, Kunde) merken nicht gespeicherte Eingaben beim Schliessen, Abbrechen oder Danebenklicken und setzen sie beim naechsten Oeffnen wieder ein (mit "Verwerfen").
+- Neuer Knopf "Kurz wegklicken" in jedem Dialog mit Eingabefeldern: Dialog verschwindet, du kannst frei durchs Programm gehen (z. B. Bausteine nachsehen); unten links "Nicht abgeschlossen" holt ihn unveraendert zurueck.
+- Rechnungs-/Angebots-Editor: ungespeicherte Dokumente bleiben beim Wechsel auf andere Seiten erhalten; "Neues Dokument" bzw. erneutes Oeffnen setzt sie fort, Liste unten links, einzeln verwerfbar.
+- Seiten mit Formularen (Einstellungen, Steuer-Angaben usw.) stellen nicht gespeicherte Eingaben beim Zurueckkehren wieder her.
+- Gemerkte Eingaben ueberstehen auch einen Programmneustart.
+
+v1.6.2
+- Statistik mit Unterrubriken: Reiter Uebersicht, Rechnungen, Einnahmen, Ausgaben.
+- Rechnungen: alle geschriebenen Rechnungen pro Jahr (oder alle Jahre), gruppierbar nach Jahr, Quartal, Monat, Kunde, Projekt, Status; Filter offen/ueberfaellig/bezahlt/storniert, Kunde, Suche; Kennzahlen inkl. Zahlungsdauer.
+- Einnahmen: Zahlungseingaenge nach Zuflussprinzip (inkl. 10-Tage-Regel) plus sonstige Einnahmen, gruppierbar nach Jahr, Quartal, Monat, Kunde, Art.
+- Ausgaben: Belege nach Kategorie, Lieferant, Jahr, Quartal, Monat, Projekt; abzugsfaehiger Betrag (Bewirtung 70 %, Anlagen ueber AfA).
+- Gruppen auf-/zuklappbar, Eintrag anklicken oeffnet Rechnung bzw. Beleg; Export jeder Ansicht als Excel und PDF (Gruppensummen + Liste).
+- Jahresvergleich: Jahr anklicken springt direkt in die Rechnungsliste des Jahres.
+
+v1.6.1
+- Jahresbericht als PDF fuer jedes Jahr (Statistik und Jahresabrechnung): Ueberblick mit Kennzahlen und Vorjahresvergleich, automatische Zusammenfassung, Monats- und Quartalszahlen, Zahlungsverhalten, offene Posten, Kunden- und Leistungsanteile, Projekte, Ausgaben nach Kategorie und Lieferant, Kontostand, Einkommen, Steuer, Anlagen, Fahrten, Unterricht, Mehrjahresvergleich.
+- Export jeder Ansicht als Excel und PDF, Export markierter Eintraege, Gesamtexport (Excel-Mappe / PDF).
+- Fehlerpruefung: doppelt gesendete Antworten, Sammelaktionen (IDs, Datum, festgeschriebene Rechnungen), Excel-Formeln und Steuerzeichen, lange PDF-Zellen, Dateinamen, strengere Update-Pruefung, Rueckkehr nur bei Startfehlern, Schutz vor fremden Webseiten, Auswahl beim Tabwechsel.
+
+v1.6.0
+- Updates ohne neue EXE: .paupdate-Datei einspielen (Einstellungen > Daten oder ins Fenster ziehen), automatische Rueckkehr bei Startproblemen, aeltere Versionen wieder aktivierbar.
+- Mehrfachauswahl mit Sammelaktionen in Belegen, Pruefliste, Rechnungen, Kunden, Bausteinen, Bank, Anlagen, Fahrten, Nachweisen und Steuerakte.
+- Standard-Passwort fuer verschluesselte Dateien wird automatisch probiert; geschuetzte PDFs werden entsperrt angezeigt.

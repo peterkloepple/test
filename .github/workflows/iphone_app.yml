@@ -1,0 +1,102 @@
+# PA Rechnung - iPhone/iPad-App bauen OHNE eigenen Mac  v1.1.0
+# Laeuft bei GitHub auf einem Mac in der Cloud (GitHub Actions).
+#  Job "ipa":        baut die App ohne Signatur -> PA_Rechnung_unsigniert.ipa (Download unter "Artifacts").
+#                    Installieren am Windows-PC mit Sideloadly und deiner Apple-ID (kostenlos, 7 Tage gueltig).
+#  Job "testflight": nur mit Apple-Entwicklerkonto - signiert in der Cloud und laedt nach TestFlight hoch.
+#                    Einschalten: Settings -> Secrets and variables -> Actions -> Variable TESTFLIGHT = 1
+#                    plus Secrets ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 (Inhalt der .p8-Datei), APPLE_TEAM_ID.
+# Start: Reiter "Actions" -> "iPhone-App bauen" -> "Run workflow" (oder automatisch nach jedem Hochladen).
+# Autor: T. Pfeiffer
+name: iPhone-App bauen
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["PA_Rechnung/**", "PARechnung_iOS/**", ".github/workflows/**"]
+
+concurrency:
+  group: iphone-app
+  cancel-in-progress: true
+
+jobs:
+  ipa:
+    runs-on: macos-15
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Programm in die App kopieren
+        run: bash PARechnung_iOS/prepare_programm.sh "$GITHUB_WORKSPACE/PA_Rechnung"
+      - name: iPhone-Projekt erzeugen (BeeWare Briefcase)
+        working-directory: PARechnung_iOS
+        run: |
+          xcodebuild -version
+          python -m pip install --upgrade pip "briefcase>=0.3.20"
+          briefcase create iOS --no-input
+      - name: Bauen ohne Signatur
+        working-directory: PARechnung_iOS
+        run: |
+          PROJ="$(find build -maxdepth 5 -name '*.xcodeproj' | head -1)"
+          SCHEME="$(basename "$PROJ" .xcodeproj)"
+          echo "Projekt: $PROJ  Schema: $SCHEME"
+          xcodebuild -project "$PROJ" -scheme "$SCHEME" -configuration Release \
+            -sdk iphoneos -destination "generic/platform=iOS" -derivedDataPath dd \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+          APP="$(find dd/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' | head -1)"
+          rm -rf out && mkdir -p out/Payload && cp -R "$APP" out/Payload/
+          (cd out && zip -qry ../PA_Rechnung_unsigniert.ipa Payload)
+          ls -la PA_Rechnung_unsigniert.ipa
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PA_Rechnung_iPhone
+          path: PARechnung_iOS/PA_Rechnung_unsigniert.ipa
+          retention-days: 30
+
+  testflight:
+    if: ${{ vars.TESTFLIGHT == '1' }}
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Programm in die App kopieren
+        run: bash PARechnung_iOS/prepare_programm.sh "$GITHUB_WORKSPACE/PA_Rechnung"
+      - name: iPhone-Projekt erzeugen
+        working-directory: PARechnung_iOS
+        run: |
+          python -m pip install --upgrade pip "briefcase>=0.3.20"
+          briefcase create iOS --no-input
+      - name: Signieren und zu TestFlight hochladen
+        working-directory: PARechnung_iOS
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          TEAM: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          KEY="$RUNNER_TEMP/AuthKey.p8"; printf '%s' "$ASC_KEY_P8" > "$KEY"
+          PROJ="$(find build -maxdepth 5 -name '*.xcodeproj' | head -1)"
+          SCHEME="$(basename "$PROJ" .xcodeproj)"
+          # every upload needs a higher build number
+          find build -name '*-Info.plist' -maxdepth 6 -exec /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${GITHUB_RUN_NUMBER}" {} \;
+          AUTH=(-allowProvisioningUpdates -authenticationKeyPath "$KEY" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID")
+          xcodebuild -project "$PROJ" -scheme "$SCHEME" -configuration Release -destination "generic/platform=iOS" \
+            -archivePath "$RUNNER_TEMP/pa.xcarchive" archive DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic "${AUTH[@]}"
+          cat > "$RUNNER_TEMP/export.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>${TEAM}</string>
+            <key>signingStyle</key><string>automatic</string>
+          </dict></plist>
+          EOF
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/pa.xcarchive" -exportOptionsPlist "$RUNNER_TEMP/export.plist" \
+            -exportPath "$RUNNER_TEMP/export" "${AUTH[@]}"
+          rm -f "$KEY"

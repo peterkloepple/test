@@ -1,0 +1,110 @@
+# -*- coding: utf-8 -*-
+# PA Rechnung - iPhone/iPad-App v1.0.0 (Programm v3.7.0)
+# Startet das komplette Programm (Ordner "programm") auf dem Geraet und zeigt es im eigenen Fenster (WKWebView).
+# Daten: "Dateien"-App -> Auf meinem iPhone -> PA Rechnung -> PA Rechnung Daten (Datenbank, Belege, Projekte).
+# Oeffnen von PDFs/Exporten: iOS-Teilen-Blatt (Drucken, Mail, In Dateien sichern, Oeffnen in ...).
+# Abgleich mit dem PC: im Programm unter "Abgleich".
+# Autor: T. Pfeiffer
+import builtins
+import os
+import runpy
+import socket
+import sys
+import threading
+import traceback
+
+import toga
+from toga.style import Pack
+
+APP_IOS_VERSION = "1.0.0"
+HERE = os.path.dirname(os.path.abspath(__file__))
+PROG = os.path.join(HERE, "programm")
+
+
+def _free_port():
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    p = s.getsockname()[1]
+    s.close()
+    return p
+
+
+def _core_file():
+    for fn in sorted(os.listdir(PROG), reverse=True):
+        if fn.startswith("PA_Rechnung_v") and fn.endswith(".py"):
+            return os.path.join(PROG, fn)
+    raise FileNotFoundError("Programmdatei PA_Rechnung_v*.py fehlt im App-Paket")
+
+
+class PARechnung(toga.App):
+    def startup(self):
+        print(f"INIT PA Rechnung iOS-App v{APP_IOS_VERSION}")
+        self.main_window = toga.MainWindow(title=self.formal_name)
+        self.info = toga.Label("PA Rechnung startet …", style=Pack(margin=30, font_size=17, text_align="center"))
+        self.main_window.content = toga.Box(children=[self.info], style=Pack(direction="column", align_items="center", justify_content="center", flex=1))
+        self.main_window.show()
+        threading.Thread(target=self._start_program, daemon=True).start()
+
+    # ---- program in a background thread (database, modules, server on 127.0.0.1 only)
+    def _start_program(self):
+        try:
+            docs = os.path.join(os.path.expanduser("~"), "Documents", "PA Rechnung Daten")
+            os.makedirs(docs, exist_ok=True)
+            os.environ["PA_RECHNUNG_DATA"] = docs
+            os.environ["PA_RECHNUNG_PORT"] = str(_free_port())
+            os.environ["PA_RECHNUNG_PLATTFORM"] = "ios"
+            builtins.PA_OPEN_HOOK = self._open_file
+            sys.argv = [_core_file(), "--server"]
+            g = runpy.run_path(_core_file(), run_name="pa_rechnung_core")
+            url = g["server_start"]()
+            self.loop.call_soon_threadsafe(self._show, url)
+        except Exception:
+            err = traceback.format_exc()
+            print(err)
+            self.loop.call_soon_threadsafe(self._fail, err)
+
+    def _show(self, url):
+        self.web = toga.WebView(url=url, style=Pack(flex=1))
+        try:
+            self.web.user_agent = (self.web.user_agent or "Mozilla/5.0 (iPhone)") + " PARechnung-iOS/" + APP_IOS_VERSION
+        except Exception:
+            pass
+        self.web.url = url
+        self.main_window.content = self.web
+
+    def _fail(self, err):
+        self.info.text = "Das Programm konnte nicht starten:\n\n" + err[-1500:]
+
+    # ---- "Oeffnen" from the program (PDF, export, beleg): share sheet with print / mail / files / open in
+    def _open_file(self, path):
+        if not os.path.exists(path):
+            return False
+        self.loop.call_soon_threadsafe(self._share, path)
+        return True
+
+    def _share(self, path):
+        try:
+            from rubicon.objc import ObjCClass
+            NSURL = ObjCClass("NSURL")
+            UIActivityViewController = ObjCClass("UIActivityViewController")
+            UIApplication = ObjCClass("UIApplication")
+            vc = UIActivityViewController.alloc().initWithActivityItems([NSURL.fileURLWithPath(path)], applicationActivities=None)
+            root = UIApplication.sharedApplication.keyWindow.rootViewController
+            while root.presentedViewController is not None:
+                root = root.presentedViewController
+            pop = vc.popoverPresentationController          # iPad: share sheet needs an anchor
+            if pop is not None:
+                pop.sourceView = root.view
+                try:
+                    from rubicon.objc.types import CGRect, CGPoint, CGSize
+                    b = root.view.bounds
+                    pop.sourceRect = CGRect(CGPoint(b.size.width / 2, 60), CGSize(1, 1))
+                except Exception:
+                    pass
+            root.presentViewController(vc, animated=True, completion=None)
+        except Exception:
+            traceback.print_exc()
+
+
+def main():
+    return PARechnung("PA Rechnung", "de.tpfeiffer.parechnung")

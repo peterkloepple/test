@@ -1,0 +1,17 @@
+# PA Rechnung - iPhone-App Repository: nichts Lokales hochladen
+# Autor: T. Pfeiffer
+__pycache__/
+*.pyc
+dist/
+build/
+.venv/
+*.paupdate
+*.exe
+*.sqlite
+*.sqlite-*
+*.db
+*.pdf
+PARechnung_iOS/src/parechnung/programm/
+PARechnung_iOS/dd/
+PARechnung_iOS/out/
+*.ipa

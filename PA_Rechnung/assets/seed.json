@@ -1,0 +1,883 @@
+{
+ "articles": [
+  {
+   "nr": "1",
+   "name": "Filmton",
+   "desc": "- Tonaufnahme\n- Postproduktion",
+   "price": 220.0,
+   "cat": "Sonstiges"
+  },
+  {
+   "nr": "107",
+   "name": "Band",
+   "desc": "5-8 Schüler (32€ pro Schüler je Monat)",
+   "price": 32.0,
+   "cat": "Unterricht"
+  },
+  {
+   "nr": "106",
+   "name": "Team",
+   "desc": "Elias\nNoah",
+   "price": 36.0,
+   "cat": "Unterricht"
+  },
+  {
+   "nr": "101",
+   "name": "Personal 30",
+   "desc": "Ben\nLuca",
+   "price": 40.0,
+   "cat": "Unterricht"
+  },
+  {
+   "nr": "102",
+   "name": "Personal 45",
+   "desc": "Felix Brandt",
+   "price": 60.0,
+   "cat": "Unterricht"
+  },
+  {
+   "nr": "8",
+   "name": "Edit Stereo Mix",
+   "desc": "Max 20 Spuren, Jede weiter Spur 10€",
+   "price": 100.0,
+   "cat": "Studio"
+  },
+  {
+   "nr": "9",
+   "name": "DJ Live Set",
+   "desc": "2-3 Std",
+   "price": 300.0,
+   "cat": "DJ"
+  },
+  {
+   "nr": "10",
+   "name": "Mix Analyse",
+   "desc": "Recording, Mix Analyse",
+   "price": 25.0,
+   "cat": "Studio"
+  },
+  {
+   "nr": "11",
+   "name": "Mixdown Stereo",
+   "desc": "max 20 Spuren jede weitere 10€ 50-200€",
+   "price": 120.0,
+   "cat": "Studio"
+  },
+  {
+   "nr": "12",
+   "name": "Mixdown 5.1",
+   "desc": "max 20 Spuren jede weitere 10€ 75-250€",
+   "price": 150.0,
+   "cat": "Studio"
+  },
+  {
+   "nr": "13",
+   "name": "Mixdown Dolby Atmos",
+   "desc": "max 20 Spuren jede weitere 10€ 100-300€",
+   "price": 250.0,
+   "cat": "Studio"
+  },
+  {
+   "nr": "14",
+   "name": "Stereo Mastering",
+   "desc": "",
+   "price": 60.0,
+   "cat": "Studio"
+  },
+  {
+   "nr": "15",
+   "name": "Mastering",
+   "desc": "Merkanal",
+   "price": 100.0,
+   "cat": "Studio"
+  },
+  {
+   "nr": "16",
+   "name": "Mastering",
+   "desc": "Stems Max 3-5 jede weitere Subgruppe 20€ 75 -175€",
+   "price": 75.0,
+   "cat": "Studio"
+  },
+  {
+   "nr": "17",
+   "name": "Korrektur Mixdown",
+   "desc": "",
+   "price": 20.0,
+   "cat": "Studio"
+  },
+  {
+   "nr": "18",
+   "name": "Korrektur Mastering",
+   "desc": "",
+   "price": 10.0,
+   "cat": "Studio"
+  },
+  {
+   "nr": "19",
+   "name": "Recording",
+   "desc": "Max 1 Std. weitere 15 Minuten je 10€",
+   "price": 55.0,
+   "cat": "Studio"
+  },
+  {
+   "nr": "20",
+   "name": "Edit Recording",
+   "desc": "Max 1Std. weitere 15 Minuten je 10€",
+   "price": 60.0,
+   "cat": "Studio"
+  },
+  {
+   "nr": "21",
+   "name": "Coaching pro Stunde",
+   "desc": "Nuendo",
+   "price": 85.0,
+   "cat": "Coaching"
+  },
+  {
+   "nr": "22",
+   "name": "Coaching pro Std",
+   "desc": "Ableton",
+   "price": 85.0,
+   "cat": "Coaching"
+  },
+  {
+   "nr": "23",
+   "name": "Coaching pro Std",
+   "desc": "Pro Tools",
+   "price": 85.0,
+   "cat": "Coaching"
+  },
+  {
+   "nr": "24",
+   "name": "Coaching pro Std",
+   "desc": "DJing Vinyl / Digital",
+   "price": 95.0,
+   "cat": "Coaching"
+  },
+  {
+   "nr": "25",
+   "name": "Coaching pro Std",
+   "desc": "Musik Produktion ( DAW: Ableton oder Nuendo)",
+   "price": 120.0,
+   "cat": "Coaching"
+  },
+  {
+   "nr": "103",
+   "name": "Probe_DJ",
+   "desc": "",
+   "price": 10.0,
+   "cat": "Unterricht"
+  },
+  {
+   "nr": "104",
+   "name": "Probe_Provision",
+   "desc": "",
+   "price": 15.0,
+   "cat": "Unterricht"
+  },
+  {
+   "nr": "105",
+   "name": "Gutschein Schüler",
+   "desc": "30€ pro Std",
+   "price": 30.0,
+   "cat": "Unterricht"
+  },
+  {
+   "nr": "2",
+   "name": "Hilfsarbeiten",
+   "desc": "",
+   "price": 400.0,
+   "cat": "Sonstiges"
+  },
+  {
+   "nr": "160",
+   "name": "DJ 60",
+   "desc": "DJing Professionell - 60min",
+   "price": 40.0,
+   "cat": "DJ"
+  },
+  {
+   "nr": "165",
+   "name": "DJ 60 N",
+   "desc": "DJing Professionell - 60min",
+   "price": 45.0,
+   "cat": "DJ"
+  }
+ ],
+ "customers": [
+  {
+   "kdnr": "20240102",
+   "firma": "Lichtblick Medien GmbH",
+   "name": "Jonas Berger",
+   "strasse": "Musterweg 3",
+   "ort": "Köln",
+   "tel": "",
+   "mobil": "",
+   "mail": "kunde1@example.com",
+   "web": "",
+   "plz": "50667",
+   "anrede": ""
+  },
+  {
+   "kdnr": "20240101",
+   "firma": "Beatwerk Akademie",
+   "name": "Daniel Krüger",
+   "strasse": "Musterweg 6",
+   "ort": "Köln",
+   "tel": "",
+   "mobil": "",
+   "mail": "kunde2@example.com",
+   "web": "",
+   "plz": "50667",
+   "anrede": "Herrn"
+  },
+  {
+   "kdnr": "PFA24-Rahn",
+   "firma": "Nordlicht Tonstudio",
+   "name": "Max Rahn",
+   "strasse": "Musterweg 9",
+   "ort": "Köln",
+   "tel": "",
+   "mobil": "",
+   "mail": "kunde3@example.com",
+   "web": "",
+   "plz": "50667",
+   "anrede": ""
+  },
+  {
+   "kdnr": "PFA24-PN",
+   "firma": "",
+   "name": "Paul Neumann",
+   "strasse": "Musterweg 12",
+   "ort": "Köln",
+   "tel": "",
+   "mobil": "",
+   "mail": "kunde4@example.com",
+   "web": "",
+   "plz": "50667",
+   "anrede": ""
+  },
+  {
+   "kdnr": "PFA25-kanal",
+   "firma": "Kanal Acht Media GmbH",
+   "name": "Sven Albers",
+   "strasse": "Musterweg 15",
+   "ort": "Köln",
+   "tel": "",
+   "mobil": "",
+   "mail": "kunde5@example.com",
+   "web": "",
+   "plz": "50667",
+   "anrede": ""
+  },
+  {
+   "kdnr": "PFA26THO",
+   "firma": "",
+   "name": "Tim Hofmann",
+   "strasse": "Musterweg 18",
+   "ort": "Köln",
+   "tel": "",
+   "mobil": "",
+   "mail": "kunde6@example.com",
+   "web": "",
+   "plz": "50667",
+   "anrede": "Herrn",
+   "strasse_mail_line": true
+  },
+  {
+   "kdnr": "RC01",
+   "firma": "",
+   "name": "Lars Becker",
+   "strasse": "Musterweg 21",
+   "ort": "Köln",
+   "tel": "",
+   "mobil": "",
+   "mail": "kunde7@example.com",
+   "web": "",
+   "plz": "50667",
+   "anrede": "Herrn"
+  },
+  {
+   "kdnr": "RC02",
+   "firma": "",
+   "name": "Noah Richter",
+   "strasse": "Musterweg 24",
+   "ort": "Köln",
+   "tel": "",
+   "mobil": "",
+   "mail": "kunde8@example.com",
+   "web": "",
+   "plz": "50667",
+   "anrede": "Herrn"
+  },
+  {
+   "kdnr": "RC03",
+   "firma": "",
+   "name": "Elias Wolf",
+   "strasse": "Musterweg 27",
+   "ort": "Köln",
+   "tel": "",
+   "mobil": "",
+   "mail": "kunde9@example.com",
+   "web": "",
+   "plz": "50667",
+   "anrede": "Herrn"
+  }
+ ],
+ "invoices": [
+  {
+   "nr": "2026-111",
+   "datum": "30.01.2026",
+   "liefer": "03.01.2026",
+   "auftrag": "03.01.2026",
+   "kdnr": "20240101",
+   "toptext": "Vielen Dank für Ihren Auftrag! Bitte zahlen Sie den Betrag binnen 7 Tagen ab Rechnungsdatum.",
+   "titel": "Rechnung",
+   "rabattspalte": false,
+   "items": [
+    {
+     "qty": 2.0,
+     "nr": "106",
+     "name": "Team",
+     "price": 36.0,
+     "rabatt": 0.0,
+     "total": 72.0,
+     "desc": "Elias\nNoah"
+    },
+    {
+     "qty": 1.0,
+     "nr": "102",
+     "name": "Personal 45",
+     "price": 60.0,
+     "rabatt": 0.0,
+     "total": 60.0,
+     "desc": "Felix Brandt"
+    },
+    {
+     "qty": 2.0,
+     "nr": "101",
+     "name": "Personal 30",
+     "price": 40.0,
+     "rabatt": 0.0,
+     "total": 80.0,
+     "desc": "Ben\nLuca"
+    }
+   ],
+   "summe": 212.0,
+   "zahlart": "Ueberweisung"
+  },
+  {
+   "nr": "2026-112",
+   "datum": "16.02.2026",
+   "liefer": "16.02.2026",
+   "auftrag": "15.02.2026",
+   "kdnr": "PFA26THO",
+   "toptext": "Vielen Dank für Ihren Auftrag! Bitte zahlen Sie den Betrag binnen 14 Tagen ab Rechnungsdatum.",
+   "titel": "Rechnung",
+   "rabattspalte": true,
+   "items": [
+    {
+     "qty": 1.0,
+     "nr": "14",
+     "name": "Stereo Mastering",
+     "price": 60.0,
+     "rabatt": 66.66,
+     "total": 20.0,
+     "desc": "- Tim Hofmann -\nALTES EISEN (24bit/16bit\n48kHz)"
+    }
+   ],
+   "summe": 20.0,
+   "zahlart": "PayPal"
+  },
+  {
+   "nr": "2026-115",
+   "datum": "22.02.2026",
+   "liefer": "02.02.2026",
+   "auftrag": "22.02.2026",
+   "kdnr": "20240101",
+   "toptext": "Vielen Dank für Ihren Auftrag! Bitte zahlen Sie den Betrag binnen 7 Tagen ab Rechnungsdatum.",
+   "titel": "Rechnung Feb",
+   "rabattspalte": false,
+   "items": [
+    {
+     "qty": 2.0,
+     "nr": "106",
+     "name": "Team",
+     "price": 36.0,
+     "rabatt": 0.0,
+     "total": 72.0,
+     "desc": "Elias\nNoah"
+    },
+    {
+     "qty": 2.0,
+     "nr": "101",
+     "name": "Personal 30",
+     "price": 40.0,
+     "rabatt": 0.0,
+     "total": 80.0,
+     "desc": "Ben\nLuca"
+    },
+    {
+     "qty": 1.0,
+     "nr": "102",
+     "name": "Personal 45",
+     "price": 60.0,
+     "rabatt": 0.0,
+     "total": 60.0,
+     "desc": "Felix Brandt"
+    }
+   ],
+   "summe": 212.0,
+   "zahlart": "Ueberweisung"
+  },
+  {
+   "nr": "2026-116",
+   "datum": "30.03.2026",
+   "liefer": "01.03.2026",
+   "auftrag": "01.03.2026",
+   "kdnr": "20240101",
+   "toptext": "Vielen Dank für Ihren Auftrag! Bitte zahlen Sie den Betrag binnen 7 Tagen ab Rechnungsdatum.",
+   "titel": "Rechnung März",
+   "rabattspalte": false,
+   "items": [
+    {
+     "qty": 2.0,
+     "nr": "106",
+     "name": "Team",
+     "price": 36.0,
+     "rabatt": 0.0,
+     "total": 72.0,
+     "desc": "Elias\nNoah"
+    },
+    {
+     "qty": 1.0,
+     "nr": "102",
+     "name": "Personal 45",
+     "price": 60.0,
+     "rabatt": 0.0,
+     "total": 60.0,
+     "desc": "Felix Brandt"
+    },
+    {
+     "qty": 2.0,
+     "nr": "101",
+     "name": "Personal 30",
+     "price": 40.0,
+     "rabatt": 0.0,
+     "total": 80.0,
+     "desc": "Ben\nLuca"
+    },
+    {
+     "qty": 1.5,
+     "nr": "105",
+     "name": "Gutschein Schüler",
+     "price": 30.0,
+     "rabatt": 0.0,
+     "total": 45.0,
+     "desc": "Jan Seidel 14.03.25 12:30-14:00"
+    }
+   ],
+   "summe": 257.0,
+   "zahlart": "Ueberweisung"
+  },
+  {
+   "nr": "2026-117",
+   "datum": "06.05.2026",
+   "liefer": "01.04.2026",
+   "auftrag": "01.04.2026",
+   "kdnr": "20240101",
+   "toptext": "Vielen Dank für Ihren Auftrag! Bitte zahlen Sie den Betrag binnen 7 Tagen ab Rechnungsdatum.",
+   "titel": "Rechnung April",
+   "rabattspalte": false,
+   "items": [
+    {
+     "qty": 2.0,
+     "nr": "106",
+     "name": "Team",
+     "price": 36.0,
+     "rabatt": 0.0,
+     "total": 72.0,
+     "desc": "Elias\nNoah"
+    },
+    {
+     "qty": 1.0,
+     "nr": "102",
+     "name": "Personal 45",
+     "price": 60.0,
+     "rabatt": 0.0,
+     "total": 60.0,
+     "desc": "Felix Brandt"
+    },
+    {
+     "qty": 2.0,
+     "nr": "101",
+     "name": "Personal 30",
+     "price": 40.0,
+     "rabatt": 0.0,
+     "total": 80.0,
+     "desc": "Ben\nLuca"
+    }
+   ],
+   "summe": 212.0,
+   "zahlart": "Ueberweisung"
+  },
+  {
+   "nr": "2026-118",
+   "datum": "30.05.2026",
+   "liefer": "01.05.2026",
+   "auftrag": "01.05.2026",
+   "kdnr": "20240101",
+   "toptext": "Vielen Dank für Ihren Auftrag! Bitte zahlen Sie den Betrag binnen 7 Tagen ab Rechnungsdatum.",
+   "titel": "Rechnung",
+   "rabattspalte": false,
+   "items": [
+    {
+     "qty": 2.0,
+     "nr": "106",
+     "name": "Team",
+     "price": 36.0,
+     "rabatt": 0.0,
+     "total": 72.0,
+     "desc": "Elias\nNoah"
+    },
+    {
+     "qty": 1.0,
+     "nr": "102",
+     "name": "Personal 45",
+     "price": 60.0,
+     "rabatt": 0.0,
+     "total": 60.0,
+     "desc": "Felix Brandt"
+    },
+    {
+     "qty": 2.0,
+     "nr": "101",
+     "name": "Personal 30",
+     "price": 40.0,
+     "rabatt": 0.0,
+     "total": 80.0,
+     "desc": "Ben\nLuca"
+    }
+   ],
+   "summe": 212.0,
+   "zahlart": "Ueberweisung"
+  },
+  {
+   "nr": "2026-119",
+   "datum": "22.06.2026",
+   "liefer": "01.06.2026",
+   "auftrag": "01.06.2026",
+   "kdnr": "20240101",
+   "toptext": "Vielen Dank für Ihren Auftrag! Bitte zahlen Sie den Betrag binnen 7 Tagen ab Rechnungsdatum.",
+   "titel": "Rechnung",
+   "rabattspalte": false,
+   "items": [
+    {
+     "qty": 2.0,
+     "nr": "106",
+     "name": "Team",
+     "price": 36.0,
+     "rabatt": 0.0,
+     "total": 72.0,
+     "desc": "Elias\nNoah"
+    },
+    {
+     "qty": 1.0,
+     "nr": "102",
+     "name": "Personal 45",
+     "price": 60.0,
+     "rabatt": 0.0,
+     "total": 60.0,
+     "desc": "Felix Brandt"
+    },
+    {
+     "qty": 2.0,
+     "nr": "101",
+     "name": "Personal 30",
+     "price": 40.0,
+     "rabatt": 0.0,
+     "total": 80.0,
+     "desc": "Ben\nLuca"
+    }
+   ],
+   "summe": 212.0,
+   "zahlart": "Ueberweisung"
+  },
+  {
+   "nr": "2026-301",
+   "datum": "14.07.2026",
+   "liefer": "14.07.2026",
+   "auftrag": "14.07.2026",
+   "kdnr": "RC01",
+   "toptext": "Vielen Dank für Ihren Auftrag! Bitte zahlen Sie den Betrag binnen 7 Tagen ab Rechnungsdatum.",
+   "titel": "Rechnung",
+   "rabattspalte": false,
+   "items": [
+    {
+     "qty": 2.0,
+     "nr": "108",
+     "name": "DJ 60",
+     "price": 40.0,
+     "rabatt": 0.0,
+     "total": 80.0,
+     "desc": "Professioneller DJing 60min"
+    }
+   ],
+   "summe": 80.0,
+   "zahlart": "Ueberweisung"
+  },
+  {
+   "nr": "2026-302",
+   "datum": "21.07.2026",
+   "liefer": "21.07.2026",
+   "auftrag": "21.07.2026",
+   "kdnr": "RC01",
+   "toptext": "Vielen Dank für Ihren Auftrag! Bitte zahlen Sie den Betrag binnen 7 Tagen ab Rechnungsdatum.",
+   "titel": "Rechnung",
+   "rabattspalte": false,
+   "items": [
+    {
+     "qty": 1.0,
+     "nr": "160",
+     "name": "DJ 60",
+     "price": 40.0,
+     "rabatt": 0.0,
+     "total": 40.0,
+     "desc": "DJing Professionell - 60min"
+    }
+   ],
+   "summe": 40.0,
+   "zahlart": "Ueberweisung"
+  },
+  {
+   "nr": "2026-303",
+   "datum": "21.07.2026",
+   "liefer": "21.07.2026",
+   "auftrag": "21.07.2026",
+   "kdnr": "RC02",
+   "toptext": "Vielen Dank für Ihren Auftrag! Bitte zahlen Sie den Betrag binnen 7 Tagen ab Rechnungsdatum.",
+   "titel": "Rechnung",
+   "rabattspalte": false,
+   "items": [
+    {
+     "qty": 1.0,
+     "nr": "165",
+     "name": "DJ 60 N",
+     "price": 45.0,
+     "rabatt": 0.0,
+     "total": 45.0,
+     "desc": "DJing Professionell - 60min"
+    }
+   ],
+   "summe": 45.0,
+   "zahlart": "Ueberweisung"
+  },
+  {
+   "nr": "2026-304",
+   "datum": "18.07.2026",
+   "liefer": "18.07.2026",
+   "auftrag": "18.07.2026",
+   "kdnr": "RC03",
+   "toptext": "Vielen Dank für Ihren Auftrag! Bitte zahlen Sie den Betrag binnen 7 Tagen ab Rechnungsdatum.",
+   "titel": "Rechnung",
+   "rabattspalte": false,
+   "items": [
+    {
+     "qty": 1.0,
+     "nr": "165",
+     "name": "DJ 60 N",
+     "price": 45.0,
+     "rabatt": 0.0,
+     "total": 45.0,
+     "desc": "DJing Professionell - 60min"
+    }
+   ],
+   "summe": 45.0,
+   "zahlart": "Ueberweisung"
+  },
+  {
+   "nr": "2026-305",
+   "datum": "28.07.2026",
+   "liefer": "28.07.2026",
+   "auftrag": "28.07.2026",
+   "kdnr": "RC01",
+   "toptext": "Vielen Dank für Ihren Auftrag! Bitte zahlen Sie den Betrag binnen 7 Tagen ab Rechnungsdatum.",
+   "titel": "Rechnung",
+   "rabattspalte": false,
+   "items": [
+    {
+     "qty": 2.0,
+     "nr": "160",
+     "name": "DJ 60",
+     "price": 40.0,
+     "rabatt": 0.0,
+     "total": 80.0,
+     "desc": "DJing Professionell - 60min"
+    }
+   ],
+   "summe": 80.0,
+   "zahlart": "Ueberweisung"
+  },
+  {
+   "nr": "2026-306",
+   "datum": "04.08.2026",
+   "liefer": "04.08.2026",
+   "auftrag": "04.08.2026",
+   "kdnr": "RC01",
+   "toptext": "Vielen Dank für Ihren Auftrag! Bitte zahlen Sie den Betrag binnen 7 Tagen ab Rechnungsdatum.",
+   "titel": "Rechnung",
+   "rabattspalte": false,
+   "items": [
+    {
+     "qty": 1.0,
+     "nr": "160",
+     "name": "DJ 60",
+     "price": 40.0,
+     "rabatt": 0.0,
+     "total": 40.0,
+     "desc": "DJing Professionell - 60min"
+    }
+   ],
+   "summe": 40.0,
+   "zahlart": "Ueberweisung"
+  },
+  {
+   "nr": "2026-307",
+   "datum": "12.08.2026",
+   "liefer": "12.08.2026",
+   "auftrag": "12.08.2026",
+   "kdnr": "RC03",
+   "toptext": "Vielen Dank für Ihren Auftrag! Bitte zahlen Sie den Betrag binnen 7 Tagen ab Rechnungsdatum.",
+   "titel": "Rechnung",
+   "rabattspalte": false,
+   "items": [
+    {
+     "qty": 1.0,
+     "nr": "165",
+     "name": "DJ 60 N",
+     "price": 45.0,
+     "rabatt": 0.0,
+     "total": 45.0,
+     "desc": "DJing Professionell - 60min"
+    }
+   ],
+   "summe": 45.0,
+   "zahlart": "Ueberweisung"
+  },
+  {
+   "nr": "2026-308",
+   "datum": "12.08.2026",
+   "liefer": "12.08.2026",
+   "auftrag": "12.08.2026",
+   "kdnr": "RC02",
+   "toptext": "Vielen Dank für Ihren Auftrag! Bitte zahlen Sie den Betrag binnen 7 Tagen ab Rechnungsdatum.",
+   "titel": "Rechnung",
+   "rabattspalte": false,
+   "items": [
+    {
+     "qty": 1.0,
+     "nr": "165",
+     "name": "DJ 60 N",
+     "price": 45.0,
+     "rabatt": 0.0,
+     "total": 45.0,
+     "desc": "DJing Professionell - 60min"
+    }
+   ],
+   "summe": 45.0,
+   "zahlart": "Ueberweisung"
+  },
+  {
+   "nr": "2026-309",
+   "datum": "02.09.2026",
+   "liefer": "02.09.2026",
+   "auftrag": "02.09.2026",
+   "kdnr": "RC01",
+   "toptext": "Vielen Dank für Ihren Auftrag! Bitte zahlen Sie den Betrag binnen 7 Tagen ab Rechnungsdatum.",
+   "titel": "Rechnung",
+   "rabattspalte": false,
+   "items": [
+    {
+     "qty": 1.0,
+     "nr": "160",
+     "name": "DJ 60",
+     "price": 40.0,
+     "rabatt": 0.0,
+     "total": 40.0,
+     "desc": "DJing Professionell - 60min"
+    }
+   ],
+   "summe": 40.0,
+   "zahlart": "Bar"
+  },
+  {
+   "nr": "2026-310",
+   "datum": "08.09.2026",
+   "liefer": "08.09.2026",
+   "auftrag": "08.09.2026",
+   "kdnr": "RC02",
+   "toptext": "Vielen Dank für Ihren Auftrag! Bitte zahlen Sie den Betrag binnen 7 Tagen ab Rechnungsdatum.",
+   "titel": "Rechnung",
+   "rabattspalte": false,
+   "items": [
+    {
+     "qty": 1.0,
+     "nr": "165",
+     "name": "DJ 60 N",
+     "price": 45.0,
+     "rabatt": 0.0,
+     "total": 45.0,
+     "desc": "DJing Professionell - 60min"
+    }
+   ],
+   "summe": 45.0,
+   "zahlart": "Ueberweisung"
+  },
+  {
+   "nr": "2026-311",
+   "datum": "07.09.2026",
+   "liefer": "08.09.2026",
+   "auftrag": "08.09.2026",
+   "kdnr": "RC03",
+   "toptext": "Vielen Dank für Ihren Auftrag! Bitte zahlen Sie den Betrag binnen 7 Tagen ab Rechnungsdatum.",
+   "titel": "Rechnung",
+   "rabattspalte": false,
+   "items": [
+    {
+     "qty": 1.0,
+     "nr": "165",
+     "name": "DJ 60 N",
+     "price": 45.0,
+     "rabatt": 0.0,
+     "total": 45.0,
+     "desc": "DJing Professionell - 60min"
+    }
+   ],
+   "summe": 45.0,
+   "zahlart": "Ueberweisung"
+  },
+  {
+   "nr": "2026-312",
+   "datum": "15.09.2026",
+   "liefer": "15.09.2026",
+   "auftrag": "15.09.2026",
+   "kdnr": "RC02",
+   "toptext": "Vielen Dank für Ihren Auftrag! Bitte zahlen Sie den Betrag binnen 7 Tagen ab Rechnungsdatum.",
+   "titel": "Rechnung",
+   "rabattspalte": false,
+   "items": [
+    {
+     "qty": 1.0,
+     "nr": "165",
+     "name": "DJ 60 N",
+     "price": 45.0,
+     "rabatt": 0.0,
+     "total": 45.0,
+     "desc": "DJing Professionell - 60min"
+    }
+   ],
+   "summe": 45.0,
+   "zahlart": "Bar"
+  }
+ ]
+}
