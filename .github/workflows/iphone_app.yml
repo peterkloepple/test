@@ -1,4 +1,5 @@
-# PA Rechnung - iPhone/iPad-App bauen OHNE eigenen Mac  v1.2.0
+# PA Rechnung - iPhone/iPad-App bauen OHNE eigenen Mac  v1.2.1
+# v1.2.1: Xcode-Protokoll bei Fehlern kurz ausgeben
 # v1.2.0: Mac mit macOS 26 + neuestem Xcode 26 (Briefcase verlangt Xcode 26, vorher nur 16.4)
 # Laeuft bei GitHub auf einem Mac in der Cloud (GitHub Actions).
 # Ergebnis: PA_Rechnung_unsigniert.ipa (Download unter "Artifacts") - Installieren am Windows-PC mit Sideloadly.
@@ -45,7 +46,10 @@ jobs:
           echo "Projekt: $PROJ  Schema: $SCHEME"
           xcodebuild -project "$PROJ" -scheme "$SCHEME" -configuration Release \
             -sdk iphoneos -destination "generic/platform=iOS" -derivedDataPath dd \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build > xcode.log 2>&1 && RC=0 || RC=$?
+          echo "xcodebuild Ergebnis: $RC"
+          grep -nE "error:|BUILD FAILED|Command .* failed|PhaseScriptExecution" xcode.log | head -60 || true
+          if [ "$RC" != "0" ]; then echo "----- letzte Zeilen -----"; tail -100 xcode.log; exit $RC; fi
           APP="$(find dd/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' | head -1)"
           rm -rf out && mkdir -p out/Payload && cp -R "$APP" out/Payload/
           (cd out && zip -qry ../PA_Rechnung_unsigniert.ipa Payload)
