@@ -1,4 +1,5 @@
-# PA Rechnung - iPhone/iPad-App  v1.1.0 (Programm v3.7.0)
+# PA Rechnung - iPhone/iPad-App  v1.1.2 (Programm v3.7.0)
+# v1.1.2: ohne cryptography (fuer iPhone nur alte Version 3.4 vorhanden) - Passwort-Verschluesselung bleibt am PC
 # BeeWare Briefcase-Projekt: das komplette Programm laeuft offline auf dem Geraet (eigene Datenbank),
 # Abgleich mit dem PC ueber "Abgleich" im Programm.
 # Bauen ohne Mac: GitHub Actions (.github/workflows/iphone_app.yml), mit Mac: ./build_ios.sh  (Handbuch Kapitel 8)
@@ -26,7 +27,6 @@ requires = [
     "openpyxl>=3.1",
     "xlrd>=2.0",
     "olefile>=0.47",
-    "cryptography>=42",
     "tzdata>=2024.1",
 ]
 
