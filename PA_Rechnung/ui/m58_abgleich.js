@@ -1,4 +1,4 @@
-// Pfeiffer-Audio Rechnung v3.7.0 - UI-Modul m58_abgleich v1.0.0: Seite "Abgleich" (System)
+// Pfeiffer-Audio Rechnung v3.7.1 - UI-Modul m58_abgleich v1.1.0: Seite "Abgleich" (System)
 // PC (Hauptgeraet): gekoppelte Geraete, "Geraet koppeln" (Code), Konflikte, Protokoll.
 // Mobilgeraet (iPhone/iPad/zweiter PC): mit PC koppeln (Adressen + Code), Jetzt abgleichen, Adressen/Intervall, Konflikte.
 // Autor: T. Pfeiffer
@@ -15,7 +15,7 @@
     clearTimeout(T);
     const d = await api("/api/sync"); if (!d) return;
     const c = d.cfg || {}, mob = c.rolle === "mobil" && d.gekoppelt, st = d.state || {}, last = st.letzter || {};
-    const konf = d.konflikte || [];
+    const konf = d.konflikte || [], pg = d.programm || {};
     let body = "";
     if (mob) {
       body = `<div class="grid g2" style="align-items:start">
@@ -28,6 +28,8 @@
             <label class="f">Name dieses Geräts<input class="in" id="sname" value="${esc(c.name || "")}" placeholder="z. B. iPhone"></label></div>
           <label class="chk"><input type="checkbox" id="sstart" ${c.beim_start !== false ? "checked" : ""}> beim Programmstart abgleichen</label>
           <label class="chk"><input type="checkbox" id="sdat" ${c.dateien !== false ? "checked" : ""}> Dateien mit abgleichen (Belege, Rechnungs-PDFs, Projektdateien)</label>
+          ${pg.selbst ? `<label class="chk"><input type="checkbox" id="sprog" ${c.programm !== false ? "checked" : ""}> Programm-Updates vom PC übernehmen</label>` : ""}
+          <div class="small muted">Programm v${esc(pg.version || "")}${pg.selbst ? " – neue Versionen kommen beim Abgleich vom PC, ohne neue Installation" : ""}${(pg.defekt || []).length ? ` · auf diesem Gerät nicht startfähig: v${esc([...new Set(pg.defekt)].join(", v"))}` : ""}</div>
           <div class="row" style="gap:8px"><button class="btn" id="ssave">Speichern</button><span class="sp"></span><button class="btn ghost" id="sunp" style="color:var(--bad)">Entkoppeln</button></div>
           <div class="small muted">Eigene Nummernkreise auf diesem Gerät (z. B. 2026-M001) – so vergeben PC und Gerät offline nie dieselbe Rechnungsnummer.</div></div></div>
         ${logCard(d)}</div>`;
@@ -49,6 +51,7 @@
         ${logCard(d)}`;
     }
     $("#main").innerHTML = `<div class="page">${pageHead("Abgleich", mob ? "Offline arbeiten – Änderungen werden mit dem PC ausgetauscht, in beide Richtungen" : "PC und Mobilgeräte arbeiten offline und gleichen sich ab", "")}
+      ${pg.neu ? `<div class="alert warn" style="margin-bottom:14px;cursor:default"><b>Programm v${esc(pg.neu)} ist geladen.</b> Es wird beim nächsten Öffnen der App verwendet. <button class="btn sm pri" id="squit" style="margin-left:8px">App jetzt schließen</button></div>` : ""}
       ${konf.length ? `<div class="alert warn" style="margin-bottom:14px;cursor:default">${konf.length} Konflikt(e): Ein Datensatz wurde auf beiden Geräten geändert – die neuere Fassung gilt, die andere ist unten aufgehoben.</div>` : ""}
       ${body}</div>`;
     bind(d);
@@ -70,7 +73,8 @@
     const adr = () => ($("#sadr") ? $("#sadr").value.split(/\s*\n\s*/).map(s => s.trim()).filter(Boolean) : []);
     on("sjetzt", async () => { toast("Abgleich läuft …"); const p_ = api("/api/sync/jetzt", {}); setTimeout(vSync, 300); const r = await p_;
       if (r && r.ok) toast(r.text || "Abgeglichen"); else if (r && r.error) toast(r.error, true); await reload(); if (view === "m58") vSync(); });
-    on("ssave", async () => { await api("/api/sync/speichern", {adressen: adr(), auto_min: +$("#sauto").value, name: $("#sname").value.trim(), beim_start: $("#sstart").checked, dateien: $("#sdat").checked}); toast("Gespeichert"); vSync(); });
+    on("ssave", async () => { await api("/api/sync/speichern", {adressen: adr(), auto_min: +$("#sauto").value, name: $("#sname").value.trim(), beim_start: $("#sstart").checked, dateien: $("#sdat").checked, programm: $("#sprog") ? $("#sprog").checked : true}); toast("Gespeichert"); vSync(); });
+    on("squit", async () => { toast("App wird geschlossen – bitte neu öffnen"); await api("/api/sync/beenden", {}); });
     on("sunp", async () => { if (!await confirmBox("Dieses Gerät vom PC entkoppeln? Die Daten bleiben hier, es wird aber nicht mehr abgeglichen.", "Entkoppeln")) return; await api("/api/sync/entkoppeln", {}); vSync(); });
     on("spair", async () => {
       const code = $("#scode").value.trim(); if (!adr().length || !code) { toast("Adresse und Code eintragen", true); return; }
@@ -97,5 +101,5 @@
         <div class="small muted">Wenn die verworfene Fassung richtig war: Datensatz öffnen und die Werte von Hand übernehmen.</div></div>`, [{label: "Schließen", cls: "pri"}], true);
     });
   }
-  console.log("INIT UI m58_abgleich v1.0.0");
+  console.log("INIT UI m58_abgleich v1.1.0");
 })();
