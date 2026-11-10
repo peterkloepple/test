@@ -1,7 +1,19 @@
 # -*- coding: utf-8 -*-
-# Pfeiffer-Audio Rechnung - Modul m58_abgleich  v1.1.0 (ab Programm v3.7.1)
-# v1.1.0: Programm-Update fuer die iPhone-App - der PC gibt seine Programmversion beim Abgleich weiter
+# Pfeiffer-Audio Rechnung - Modul m58_abgleich  v1.2.0 (ab Programm v3.8.1, erstmals v3.7.0)
+# v1.2.0: Programm-Update fuer die iPhone-App - der PC gibt seine Programmversion beim Abgleich weiter
 #         (/sync/programm), die App legt sie in ihrem Programmordner ab und startet sie beim naechsten Oeffnen.
+# v1.1.0: schneller, einfacher, automatisch
+#  - PC suchen: das Mobilgeraet findet den PC selbst (UDP-Rundruf Port 8781, sonst Netz-Suche ueber /sync/ping);
+#    beim Koppeln nur noch "PC suchen" + Code. Wechselt die IP des PCs, wird er automatisch wiedergefunden.
+#  - Live: PC-Aenderungen kommen per Warte-Anfrage (/sync/wait, long poll) in 2-3 s aufs Geraet, Aenderungen
+#    am Geraet gehen ca. 8 s nach der letzten Eingabe zum PC. Intervall zusaetzlich (auch jede Minute).
+#  - Schneller: JSON gzip-komprimiert (beide Richtungen), groessere Pakete, alle PC-Adressen gleichzeitig pruefen,
+#    Dateien gebuendelt (ZIP-Pakete bis 16 MB) und parallel (3 gleichzeitig), nur seit dem letzten Abgleich
+#    geaenderte Dateien pruefen (einmal am Tag komplett). Abgleich-Zugang zaehlt nicht zum Anfragen-Limit (m88).
+#  - Bei Fehlern automatisch neuer Versuch mit wachsendem Abstand (15 s ... 5 min).
+#  - Neu empfangene Daten: offene Programmseiten laden sich selbst neu (/api/sync/gen) - nicht waehrend einer Eingabe.
+#  - Menue-Aufbau links (ui_menu, aus m63) wird mit abgeglichen; Positionen/Breiten bleiben je Geraet (ui_layout).
+#  - Alte Gegenstelle (v3.7.x) wird erkannt (Faehigkeiten im /sync/ping) und wie bisher bedient.
 # Abgleich zwischen zwei Installationen (PC = Hauptgeraet, iPhone/iPad/zweiter PC = Mobilgeraet), beide arbeiten
 # offline mit eigener Datenbank. Beim Abgleich werden nur Aenderungen ausgetauscht, in beide Richtungen.
 #  - Jede Zeile jeder Datentabelle bekommt eine weltweit eindeutige ID (sync_row.uid) und eine Version
@@ -30,11 +42,32 @@ import gzip as _gzip
 import base64
 import sqlite3
 import secrets
+import socket as _m58_socket
+import zipfile as _m58_zip
+import io as _m58_io
+import zlib as _m58_zlib
+import concurrent.futures as _m58_cf
 
-M58_VERSION = "1.1.0"
+M58_VERSION = "1.2.0"
 M58_LOCK = threading.RLock()
 M58_STATE = {"laeuft": False, "text": "", "letzter": None}
-M58_BATCH = 1500
+M58_BATCH = 5000
+M58_CAPS = ["gz", "zip", "wait", "fsince", "addrs"]
+M58_DISC_PORT = 8781
+M58_DISC_MSG = b"PA-SYNC-DISCOVER 1"
+M58_CHUNK = 16 << 20            # bytes per file package
+M58_CHUNK_N = 300               # files per file package
+M58_WORKERS = 3                 # parallel file packages
+M58_QUIET = 8                   # live: seconds without edits before the changes go to the PC
+M58_FILE_EVERY = 600            # files at least every 10 minutes (and whenever data was exchanged)
+M58_FULL_EVERY = 86400          # complete file comparison once a day
+M58_WAIT = 25                   # long poll seconds
+M58_STORED = (".jpg", ".jpeg", ".png", ".heic", ".heif", ".webp", ".gif", ".pdf", ".zip", ".gz", ".7z", ".rar",
+              ".mp4", ".mov", ".m4a", ".mp3", ".docx", ".xlsx", ".pptx", ".odt", ".ods", ".paupdate")
+M58_WAKE = threading.Event()
+M58_RT = {"live": False, "base": "", "caps": [], "fehler": 0, "naechster": 0.0, "grund": "", "erreichbar": None,
+          "letzt_sync": 0.0, "f_last": 0.0, "push_ok": 0.0, "wake_t": 0.0, "gen": 0}
+M58_LIVE = {}                   # PC side: device -> time of its last wait request
 
 # tables that stay on each device (logs, caches, device access, mail fetched per device, folder scans)
 M58_EXCLUDE = {
@@ -108,9 +141,12 @@ def m58_cfg():
     c.setdefault("adressen", [])
     c.setdefault("token", "")
     c.setdefault("auto_min", 15)
+    c.setdefault("live", True)               # v1.1.0: changes are exchanged right away
+    c.setdefault("auto_adr", [])             # v1.1.0: addresses reported by the PC itself (kept up to date)
+    c.setdefault("last_base", "")
     c.setdefault("beim_start", True)
     c.setdefault("dateien", True)
-    c.setdefault("programm", True)            # v1.1.0: mobile app takes newer program versions from the PC
+    c.setdefault("programm", True)            # v1.2.0: mobile app takes newer program versions from the PC
     c.setdefault("name", "")
     return c
 
@@ -423,6 +459,8 @@ def m58_apply(rows, src_name="", initial=False, conflict_since=None):
         DB_GEN[0] += 1
     except NameError:
         pass
+    if st["neu"] or st["geaendert"] or st["geloescht"]:
+        M58_RT["gen"] = int(M58_RT.get("gen") or 0) + 1        # v1.1.0: open program pages reload themselves
     # GoBD: every device logs what it took over (own hash chain)
     fn = globals().get("m51_log")
     if callable(fn) and audit and not initial:
@@ -474,7 +512,8 @@ def m58_file_dirs():
     return out
 
 
-def m58_manifest():
+def m58_manifest(since=None):
+    """rel -> [size, mtime]; since: only files created/changed after this time (own clock)"""
     files = {}
     for d in m58_file_dirs():
         root = os.path.join(DATA_DIR, d)
@@ -489,6 +528,8 @@ def m58_manifest():
                 except OSError:
                     continue
                 if stt.st_size > M58_DIR_FILE_MAX:
+                    continue
+                if since and max(stt.st_mtime, stt.st_ctime) < since - 5:
                     continue
                 rel = os.path.relpath(p, DATA_DIR).replace("\\", "/")
                 files[rel] = [stt.st_size, int(stt.st_mtime)]
@@ -526,11 +567,124 @@ def m58_file_write(rel, data, mtime=None):
             pass
 
 
+def _m58_zip(items):
+    """items [(rel, path)] -> zip bytes with _meta.json {arcname: [rel, mtime]}"""
+    bio = _m58_io.BytesIO()
+    meta = {}
+    with _m58_zip.ZipFile(bio, "w") as z:
+        for i, (rel, fp) in enumerate(items):
+            try:
+                mt = int(os.path.getmtime(fp))
+                with open(fp, "rb") as f:
+                    data = f.read()
+            except OSError:
+                continue
+            arc = f"f/{i}"
+            if rel.lower().endswith(M58_STORED):
+                z.writestr(arc, data, compress_type=_m58_zip.ZIP_STORED)
+            else:
+                z.writestr(arc, data, compress_type=_m58_zip.ZIP_DEFLATED, compresslevel=5)
+            meta[arc] = [rel, mt]
+        z.writestr("_meta.json", json.dumps(meta, ensure_ascii=False))
+    return bio.getvalue()
+
+
+def _m58_unzip(raw):
+    """-> (count, errors)"""
+    n, err = 0, []
+    with _m58_zip.ZipFile(_m58_io.BytesIO(raw)) as z:
+        meta = json.loads(z.read("_meta.json").decode("utf-8"))
+        for arc, (rel, mt) in meta.items():
+            try:
+                if z.getinfo(arc).file_size > M58_DIR_FILE_MAX:
+                    raise ValueError("zu groß")
+                m58_file_write(rel, z.read(arc), mt)
+                n += 1
+            except Exception as e:
+                err.append(f"{rel}: {e}"[:200])
+    return n, err
+
+
+def _m58_chunks(items):
+    """items [(rel, size)] -> [[rel, ...], ...] packages of max M58_CHUNK bytes / M58_CHUNK_N files"""
+    out, cur, sz = [], [], 0
+    for rel, n in items:
+        n = int(n or 0)
+        if cur and (sz + n > M58_CHUNK or len(cur) >= M58_CHUNK_N):
+            out.append(cur)
+            cur, sz = [], 0
+        cur.append(rel)
+        sz += n
+    if cur:
+        out.append(cur)
+    return out
+
+
+def _m58_ips():
+    fn = globals().get("lan_ips")
+    try:
+        return fn() if callable(fn) else []
+    except Exception:
+        return []
+
+
+def _m58_pairing():
+    pr = (globals().get("M88") or {}).get("pair")
+    return bool(pr and time.time() < pr.get("ablauf", 0))
+
+
+def _m58_my_addrs():
+    """PC: own addresses in the home network (sent to the device so it can find the PC again)"""
+    try:
+        m = globals().get("M88") or {}
+        port = m.get("port") or m88_cfg().get("port") or 8780
+        if m88_cfg().get("modus") != "lan":
+            return []
+        return [f"http://{ip}:{port}" for ip in _m58_ips()]
+    except Exception:
+        return []
+
+
+def _m58_has_new(since, peer):
+    """PC: are there changes the device does not have yet (not made by the device itself)?"""
+    with DB_LOCK:
+        r = CON.execute("SELECT 1 FROM sync_row WHERE lc>? AND dev<>? LIMIT 1", (since, peer)).fetchone()
+        if not r:
+            r = CON.execute("SELECT 1 FROM sync_tomb WHERE lc>? AND dev<>? LIMIT 1", (since, peer)).fetchone()
+    return bool(r)
+
+
+def _m58_out(h, code, obj):
+    """JSON answer, gzip-compressed when the device accepts it"""
+    b = json.dumps(obj, ensure_ascii=False, default=str).encode("utf-8")
+    if len(b) > 2048 and "gzip" in (h.headers.get("Accept-Encoding") or "").lower():
+        return h._out(code, _gzip.compress(b, 5), "application/json; charset=utf-8", {"Content-Encoding": "gzip"})
+    return h._out(code, b)
+
+
+def _m58_rjson(h, limit=1 << 20):
+    """JSON request body, plain or gzip"""
+    b = h._body(limit)
+    if (h.headers.get("Content-Encoding") or "").lower() == "gzip" and b:
+        dz = _m58_zlib.decompressobj(16 + _m58_zlib.MAX_WBITS)
+        b = dz.decompress(b, limit * 8)
+        if dz.unconsumed_tail:
+            raise ValueError("Anfrage zu groß.")
+    if not b:
+        return {}
+    d = json.loads(b.decode("utf-8"))
+    if not isinstance(d, dict):
+        raise ValueError("JSON-Objekt erwartet.")
+    return d
+
+
 # ---------------------------------------------------------------------------- server side (PC) - called from m88
 def m58_server_route(h, method, p, qs, tok):
     """/sync/... on the interface server. tok = token row (typ 'sync') or None (only /sync/pair, /sync/ping)"""
     if p == "/sync/ping":
-        return h._out(200, {"ok": True, "app": "PA Rechnung", "version": APP_VERSION, "dev": m58_me(), "name": m58_cfg().get("name") or ""})
+        return h._out(200, {"ok": True, "app": "PA Rechnung", "version": APP_VERSION, "dev": m58_me(),
+                            "name": m58_cfg().get("name") or _m58_socket.gethostname(), "caps": M58_CAPS,
+                            "pairing": _m58_pairing(), "rolle": m58_cfg().get("rolle"), "addrs": _m58_my_addrs()})
     if p == "/sync/pair" and method == "POST":
         d = h._json()
         code = re.sub(r"[^A-Z0-9]", "", (d.get("code") or "").upper())
@@ -548,26 +702,77 @@ def m58_server_route(h, method, p, qs, tok):
         m58_enable()
         x("INSERT OR REPLACE INTO sync_peer (dev, name, rolle, zuletzt, info) VALUES (?,?,?,?,?)",
           (str(d.get("dev") or "")[:40], nm, "mobil", now_iso(), "gekoppelt"))
-        return h._out(200, {"ok": True, "token": token, "dev": m58_me(), "name": m58_cfg().get("name") or "PC", "version": APP_VERSION})
+        return h._out(200, {"ok": True, "token": token, "dev": m58_me(), "name": m58_cfg().get("name") or _m58_socket.gethostname() or "PC",
+                            "version": APP_VERSION, "caps": M58_CAPS, "addrs": _m58_my_addrs()})
     if not tok or tok.get("typ") != "sync":
         h._fail()
         return h._out(401, {"ok": False, "error": "Abgleich-Zugang fehlt oder ungültig – Gerät neu koppeln."})
     if p == "/sync/full" and method == "POST":
-        d = h._json()
+        d = _m58_rjson(h)
         m58_enable()
-        return h._out(200, dict(m58_full_export(int(d.get("after") or 0)), ok=True))
+        return _m58_out(h, 200, dict(m58_full_export(int(d.get("after") or 0), max(500, min(10000, int(d.get("limit") or 4000)))), ok=True))
+    if p == "/sync/wait" and method == "GET":
+        # v1.1.0 live: answer as soon as the PC has something new for the device (or after t seconds)
+        since, peer = int(qs.get("since") or 0), str(qs.get("dev") or "")[:40]
+        end = time.time() + max(1, min(M58_WAIT, int(qs.get("t") or M58_WAIT)))
+        while time.time() < end:
+            M58_LIVE[peer] = time.time()
+            if _m58_has_new(since, peer):
+                time.sleep(1.5)                       # collect what belongs together (e.g. invoice + items)
+                return _m58_out(h, 200, {"ok": True, "neu": True})
+            time.sleep(1.0)
+        M58_LIVE[peer] = time.time()
+        return _m58_out(h, 200, {"ok": True, "neu": False})
     if p == "/sync/changes" and method == "POST":
-        d = h._json(limit=200 << 20)
+        d = _m58_rjson(h, limit=200 << 20)
         peer = str(d.get("dev") or "")[:40]
         m58_enable()
         st = m58_apply(d.get("changes") or [], d.get("name") or peer, conflict_since=int(d.get("ack") or 0))
         rows, upto = m58_changes_since(int(d.get("ack") or 0), peer=peer)
         x("INSERT OR REPLACE INTO sync_peer (dev, name, rolle, my_sent, their_recv, zuletzt, adresse, info) VALUES (?,?,?,?,?,?,?,?)",
           (peer, (d.get("name") or "")[:60], "mobil", upto, int(d.get("upto") or 0), now_iso(), h._ip(), json.dumps(st)))
-        return h._out(200, {"ok": True, "changes": rows, "upto": upto, "applied": st, "dev": m58_me()})
+        M58_LIVE[peer] = time.time()
+        return _m58_out(h, 200, {"ok": True, "changes": rows, "upto": upto, "applied": st, "dev": m58_me()})
     if p == "/sync/manifest" and method == "POST":
-        d = h._json(limit=100 << 20)
-        return h._out(200, dict(m58_manifest_compare(d.get("files") or {}), ok=True))
+        d = _m58_rjson(h, limit=100 << 20)
+        return _m58_out(h, 200, dict(m58_manifest_compare(d.get("files") or {}), ok=True))
+    if p == "/sync/manifest2" and method == "POST":
+        # v1.1.0: device sends only its changed files; PC answers with what it needs and what changed here since "since"
+        d = _m58_rjson(h, limit=100 << 20)
+        now = time.time()
+        need = []
+        for rel, v in (d.get("files") or {}).items():
+            try:
+                fp = _m58_safe_rel(rel)
+            except ValueError:
+                continue
+            try:
+                lm = os.path.getmtime(fp)
+            except OSError:
+                lm = None
+            if lm is None or float(v[1]) > lm + 2:
+                need.append(rel)
+        since = d.get("since")
+        give = [[rel, sz, mt] for rel, (sz, mt) in m58_manifest(float(since) if since else None).items()]
+        return _m58_out(h, 200, {"ok": True, "need": need, "give": give, "now": now})
+    if p == "/sync/files/get" and method == "POST":
+        d = _m58_rjson(h, limit=20 << 20)
+        items = []
+        for rel in d.get("rels") or []:
+            try:
+                fp = _m58_safe_rel(rel)
+            except ValueError:
+                continue
+            if os.path.isfile(fp):
+                items.append((rel, fp))
+        return h._out(200, _m58_zip(items), "application/zip")
+    if p == "/sync/files/put" and method == "POST":
+        n = int(h.headers.get("Content-Length") or 0)
+        if n > M58_DIR_FILE_MAX + (64 << 20):
+            return _m58_out(h, 413, {"ok": False, "error": "Paket zu groß"})
+        raw = h.rfile.read(n) if n > 0 else b""
+        cnt, err = _m58_unzip(raw)
+        return _m58_out(h, 200, {"ok": True, "n": cnt, "fehler": err[:20]})
     if p == "/sync/file" and method == "GET":
         fp = _m58_safe_rel(qs.get("rel"))
         if not os.path.isfile(fp):
@@ -588,7 +793,7 @@ def m58_server_route(h, method, p, qs, tok):
     return h._out(404, {"ok": False, "error": "Unbekannter Abgleich-Befehl"})
 
 
-# ---------------------------------------------------------------------------- program update for the mobile app (v1.1.0)
+# ---------------------------------------------------------------------------- program update for the mobile app (v1.2.0)
 # The PC hands its own program files (core, modules, ui, assets) to a paired mobile device. The iPhone app keeps
 # them in its own program folder (PA_RECHNUNG_PROG_DIR, set by the app) and starts the newer version at the next
 # app start. Without that folder (PC, second PC) nothing is fetched - a PC is updated with the .paupdate file.
@@ -652,7 +857,7 @@ def m58_prog_update(base, token):
     try:
         info = _m58_json(base, "/sync/programm", token=token, timeout=30)
     except ValueError:
-        return None                                 # PC older than v3.7.1 - cannot hand out its program
+        return None                                 # PC older than v3.8.1 - cannot hand out its program
     ver, sha = str(info.get("version") or ""), str(info.get("sha256") or "")
     if not info.get("ok") or not re.fullmatch(r"\d+(\.\d+){1,3}", ver) or _m58_vt(ver) <= _m58_vt(APP_VERSION):
         return None
@@ -693,7 +898,7 @@ def m58_app_quit(d):
 
 
 # ---------------------------------------------------------------------------- client side (mobile device)
-def _m58_http(base, path, body=None, raw=None, token="", timeout=60, method=None, ctype="application/json"):
+def _m58_http(base, path, body=None, raw=None, token="", timeout=60, method=None, ctype="application/json", gz=False):
     data = None
     hd = {"User-Agent": "PA-Rechnung-Abgleich", "Accept-Encoding": "gzip"}
     if token:
@@ -701,6 +906,9 @@ def _m58_http(base, path, body=None, raw=None, token="", timeout=60, method=None
     if body is not None:
         data = json.dumps(body, ensure_ascii=False, default=str).encode("utf-8")
         hd["Content-Type"] = ctype
+        if gz and len(data) > 4096:                   # v1.1.0: only to a PC that understands it (caps "gz")
+            data = _gzip.compress(data, 5)
+            hd["Content-Encoding"] = "gzip"
     elif raw is not None:
         data = raw
         hd["Content-Type"] = "application/octet-stream"
@@ -721,42 +929,170 @@ def _m58_http(base, path, body=None, raw=None, token="", timeout=60, method=None
         raise ValueError(msg or f"PC meldet Fehler {e.code}.")
 
 
-def _m58_json(base, path, body=None, token="", timeout=120):
-    st_, b, _h = _m58_http(base, path, body=body, token=token, timeout=timeout)
+def _m58_json(base, path, body=None, token="", timeout=120, gz=False):
+    st_, b, _h = _m58_http(base, path, body=body, token=token, timeout=timeout, gz=gz)
     return json.loads(b or b"{}")
 
 
-def m58_find_server(c=None):
+def _m58_norm(a):
+    a = (a or "").strip().rstrip("/")
+    if a and not re.match(r"^https?://", a, re.I):
+        a = "http://" + a
+    return a
+
+
+def _m58_addr_list(c):
+    """last working address first, then the ones the PC reported, then the ones entered by hand"""
+    out = []
+    for a in [c.get("last_base")] + list(c.get("auto_adr") or []) + list(c.get("adressen") or []):
+        a = _m58_norm(a)
+        if a and a not in out:
+            out.append(a)
+    return out
+
+
+def m58_find_server(c=None, timeout=3):
+    """v1.1.0: all addresses are tried at the same time, the first answer of the right PC wins"""
     c = c or m58_cfg()
+    adr = _m58_addr_list(c)
+    if not adr:
+        raise ValueError("PC nicht erreichbar – keine Adresse bekannt. „PC suchen“ drücken oder Adresse eintragen.")
+    want = c.get("pc_dev") if c.get("token") else None
     errs = []
-    for a in c.get("adressen") or []:
-        a = (a or "").strip().rstrip("/")
-        if not a:
-            continue
-        if not re.match(r"^https?://", a, re.I):
-            a = "http://" + a
-        try:
-            j = _m58_json(a, "/sync/ping", timeout=4)
-            if j.get("ok"):
-                return a, j
-        except Exception as e:
-            errs.append(f"{a}: {str(e)[:80]}")
-    raise ValueError("PC nicht erreichbar" + (" (" + "; ".join(errs) + ")" if errs else " – keine Adresse eingetragen."))
+    ex = _m58_cf.ThreadPoolExecutor(max_workers=min(8, len(adr)))
+    try:
+        fs = {ex.submit(_m58_json, a, "/sync/ping", None, "", timeout): a for a in adr}
+        for f in _m58_cf.as_completed(fs):
+            a = fs[f]
+            try:
+                j = f.result()
+            except Exception as e:
+                errs.append(f"{a}: {str(e)[:60]}")
+                continue
+            if not j.get("ok"):
+                continue
+            if want and j.get("dev") and j.get("dev") != want:
+                errs.append(f"{a}: anderer PC ({j.get('name') or j.get('dev')})")
+                continue
+            m58_remember_server(a, j)
+            return a, j
+    finally:
+        ex.shutdown(wait=False)
+    raise ValueError("PC nicht erreichbar" + (" (" + "; ".join(errs[:4]) + ")" if errs else "."))
+
+
+def m58_remember_server(base, info):
+    """keep the working address and the addresses the PC reports - written only when something changed"""
+    M58_RT.update(base=base, caps=list(info.get("caps") or []), erreichbar=True)
+    c = m58_cfg()
+    ch = False
+    if c.get("last_base") != base:
+        c["last_base"] = base
+        ch = True
+    addrs = [_m58_norm(a) for a in (info.get("addrs") or []) if a][:8]
+    if addrs and addrs != list(c.get("auto_adr") or []):
+        c["auto_adr"] = addrs
+        ch = True
+    if ch and c.get("token"):
+        m58_cfg_save(c)
+
+
+def m58_discover(timeout=1.5, scan=True):
+    """v1.1.0: find PCs with PA Rechnung in the home network.
+    1. UDP broadcast (port 8781) - answers within a second
+    2. if nobody answers (firewall, iPhone without broadcast): ask /sync/ping on every address of the own /24 network"""
+    me = m58_me()
+    found = {}
+    ips = _m58_ips()
+    try:
+        s_ = _m58_socket.socket(_m58_socket.AF_INET, _m58_socket.SOCK_DGRAM)
+        s_.setsockopt(_m58_socket.SOL_SOCKET, _m58_socket.SO_BROADCAST, 1)
+        s_.settimeout(0.3)
+        for t in {"255.255.255.255"} | {ip.rsplit(".", 1)[0] + ".255" for ip in ips}:
+            try:
+                s_.sendto(M58_DISC_MSG, (t, M58_DISC_PORT))
+            except OSError:
+                pass
+        end = time.time() + timeout
+        while time.time() < end:
+            try:
+                data, addr = s_.recvfrom(4096)
+            except _m58_socket.timeout:
+                continue
+            except OSError:
+                break
+            try:
+                j = json.loads(data.decode("utf-8"))
+            except Exception:
+                continue
+            if j.get("app") == "PA Rechnung" and j.get("dev") and j.get("dev") != me:
+                found[j["dev"]] = dict(j, base=f"http://{addr[0]}:{int(j.get('port') or 8780)}", ip=addr[0])
+        s_.close()
+    except Exception:
+        pass
+    if not found and scan and ips:
+        ports = {8780}
+        for a in _m58_addr_list(m58_cfg()):
+            m = re.match(r"^https?://[^/:]+:(\d+)", a)
+            if m:
+                ports.add(int(m.group(1)))
+        hosts = []
+        for ip in ips[:2]:
+            pre = ip.rsplit(".", 1)[0]
+            hosts += [f"http://{pre}.{i}:{pt}" for i in range(1, 255) for pt in sorted(ports) if f"{pre}.{i}" != ip]
+
+        def probe(b):
+            try:
+                return b, _m58_json(b, "/sync/ping", timeout=0.8)
+            except Exception:
+                return b, None
+        with _m58_cf.ThreadPoolExecutor(max_workers=64) as ex:
+            for b, j in ex.map(probe, hosts):
+                if j and j.get("ok") and j.get("app") == "PA Rechnung" and j.get("dev") and j.get("dev") != me:
+                    found.setdefault(j["dev"], dict(j, base=b, ip=b.split("//", 1)[1].split(":", 1)[0]))
+    out = []
+    for j in found.values():
+        out.append({k: j.get(k) for k in ("dev", "name", "base", "ip", "version", "pairing", "rolle")})
+    return sorted(out, key=lambda r: (not r.get("pairing"), r.get("rolle") == "mobil", r.get("name") or ""))
+
+
+def m58_rediscover():
+    """device: the paired PC is not reachable at the known addresses -> look for it in the network"""
+    c = m58_cfg()
+    want = c.get("pc_dev")
+    for r in m58_discover(scan=True):
+        if want and r.get("dev") == want:
+            try:
+                j = _m58_json(r["base"], "/sync/ping", timeout=3)
+                m58_remember_server(r["base"], j)
+                return r["base"]
+            except Exception:
+                pass
+    return None
 
 
 def m58_pair(d):
     """mobile device: couple with the PC (code from the PC) and take over its complete state"""
     c = m58_cfg()
     adr = [a.strip() for a in (d.get("adressen") or c.get("adressen") or []) if a and a.strip()]
-    if not adr:
-        raise ValueError("Bitte mindestens eine Adresse des PCs eintragen (z. B. http://192.168.1.20:8780).")
-    c["adressen"] = adr
+    sel = _m58_norm(d.get("base") or "")                   # v1.1.0: PC chosen from "PC suchen"
+    if not adr and not sel:
+        found = [r for r in m58_discover() if r.get("pairing")]
+        if len(found) == 1:
+            sel = found[0]["base"]
+        else:
+            raise ValueError("Kein PC zum Koppeln gefunden – am PC „Gerät koppeln“ drücken, dann hier „PC suchen“ "
+                             "(oder die Adresse des PCs eintragen).")
+    c.update(adressen=adr, last_base=sel or "", auto_adr=[], pc_dev="", token="")
     base, info = m58_find_server(c)
     j = _m58_json(base, "/sync/pair", {"code": d.get("code"), "name": d.get("name") or c.get("name") or "Mobilgerät", "dev": m58_me()})
     if not j.get("ok"):
         raise ValueError(j.get("error") or "Kopplung fehlgeschlagen.")
-    c.update(aktiv=True, rolle="mobil", token=j["token"], pc_dev=j.get("dev"), pc_name=j.get("name"), name=d.get("name") or c.get("name") or "")
+    c.update(aktiv=True, rolle="mobil", token=j["token"], pc_dev=j.get("dev"), pc_name=j.get("name"), name=d.get("name") or c.get("name") or "",
+             last_base=base, auto_adr=[_m58_norm(a) for a in (j.get("addrs") or info.get("addrs") or [])][:8],
+             f_my_since=0, f_pc_since=0, f_full=0)
     m58_cfg_save(c)
+    M58_RT.update(base=base, caps=list(j.get("caps") or info.get("caps") or []), erreichbar=True, fehler=0, naechster=0.0)
     r = m58_initial_copy(base, j["token"], j.get("dev"))
     return dict(r, ok=True, pc=j.get("name"))
 
@@ -766,8 +1102,9 @@ def m58_initial_copy(base, token, pc_dev):
     M58_STATE.update(laeuft=True, text="Erstabgleich: Daten werden geholt …")
     try:
         rows, after, clock = [], 0, 0
+        gz = "gz" in (M58_RT.get("caps") or [])
         while True:
-            j = _m58_json(base, "/sync/full", {"after": after}, token=token, timeout=300)
+            j = _m58_json(base, "/sync/full", {"after": after, "limit": 8000}, token=token, timeout=300, gz=gz)
             rows += j.get("rows") or []
             clock = max(clock, int(j.get("clock") or 0))
             M58_STATE["text"] = f"Erstabgleich: {len(rows)} Datensätze geholt …"
@@ -795,7 +1132,7 @@ def m58_initial_copy(base, token, pc_dev):
                         (pc_dev or "", m58_cfg().get("pc_name") or "PC", "haupt", 0, clock, now_iso(), base, "Erstabgleich"))
             CON.commit()
         nums = m58_mobile_numbers()
-        files = m58_sync_files(base, token) if m58_cfg().get("dateien", True) else {"hin": 0, "her": 0}
+        files = m58_sync_files(base, token, voll=True) if m58_cfg().get("dateien", True) else {"hin": 0, "her": 0}
         txt = f"Erstabgleich fertig: {len(rows)} Datensätze, {files['her']} Dateien vom PC."
         x("INSERT INTO sync_log (zeit, peer, gesendet, empfangen, dateien_hin, dateien_her, konflikte, ok, text) VALUES (?,?,?,?,?,?,?,?,?)",
           (now_iso(), "PC", 0, len(rows), files["hin"], files["her"], st["konflikte"], 1, txt))
@@ -805,7 +1142,79 @@ def m58_initial_copy(base, token, pc_dev):
         M58_STATE.update(laeuft=False, text="")
 
 
-def m58_sync_files(base, token):
+def m58_sync_files(base, token, voll=False):
+    """v1.1.0: only changed files, bundled into ZIP packages, 3 packages at the same time"""
+    caps = M58_RT.get("caps") or []
+    if "zip" not in caps or "fsince" not in caps:
+        return _m58_sync_files_v1(base, token)
+    c = m58_cfg()
+    t0 = time.time()
+    voll = voll or not c.get("f_my_since") or t0 - float(c.get("f_full") or 0) > M58_FULL_EVERY
+    M58_STATE["text"] = "Dateien werden verglichen …" + (" (komplett)" if voll else "")
+    mine = m58_manifest(None if voll else float(c["f_my_since"]))
+    j = _m58_json(base, "/sync/manifest2", {"files": mine, "since": None if voll else float(c.get("f_pc_since") or 0)},
+                  token=token, timeout=300, gz=True)
+    need = [rel for rel in (j.get("need") or []) if rel in mine]
+    give = []
+    for rel, sz, mt in j.get("give") or []:
+        try:
+            fp = _m58_safe_rel(rel)
+        except ValueError:
+            continue
+        try:
+            lm = os.path.getmtime(fp)
+        except OSError:
+            lm = None
+        if lm is None or float(mt) > lm + 2:
+            give.append((rel, sz))
+    up = _m58_chunks([(rel, mine[rel][0]) for rel in need])
+    down = _m58_chunks(give)
+    tot = len(need) + len(give)
+    res = {"hin": 0, "her": 0, "fehler": 0}
+    errs = []
+    lk = threading.Lock()
+
+    def prog():
+        M58_STATE["text"] = f"Dateien: {res['hin'] + res['her']} von {tot} …"
+
+    def do_up(ch):
+        raw = _m58_zip([(rel, _m58_safe_rel(rel)) for rel in ch])
+        _s, b, _h = _m58_http(base, "/sync/files/put", raw=raw, token=token, timeout=900)
+        r = json.loads(b or b"{}")
+        with lk:
+            res["hin"] += int(r.get("n") or 0)
+            errs.extend(r.get("fehler") or [])
+            prog()
+
+    def do_down(ch):
+        _s, b, _h = _m58_http(base, "/sync/files/get", body={"rels": ch}, token=token, timeout=900)
+        n, e = _m58_unzip(b)
+        with lk:
+            res["her"] += n
+            errs.extend(e)
+            prog()
+    if tot:
+        prog()
+        with _m58_cf.ThreadPoolExecutor(max_workers=M58_WORKERS) as ex:
+            fs = [ex.submit(do_up, ch) for ch in up] + [ex.submit(do_down, ch) for ch in down]
+            for f in fs:
+                try:
+                    f.result()
+                except Exception as e:
+                    errs.append(str(e)[:200])
+    res["fehler"] = len(errs)
+    M58_RT["f_last"] = time.time()
+    if not errs:
+        c = m58_cfg()
+        c.update(f_my_since=t0, f_pc_since=float(j.get("now") or 0), f_full=t0 if voll else float(c.get("f_full") or 0))
+        m58_cfg_save(c)
+    else:
+        print("m58 Dateien:", "; ".join(errs[:5]))
+    return res
+
+
+def _m58_sync_files_v1(base, token):
+    """file comparison with a PC on v3.7.x (one file per request)"""
     mine = m58_manifest()
     j = _m58_json(base, "/sync/manifest", {"files": mine}, token=token, timeout=300)
     hin = her = 0
@@ -827,7 +1236,28 @@ def m58_sync_files(base, token):
     return {"hin": hin, "her": her}
 
 
-def m58_sync_now(grund="Knopf"):
+def _m58_pc_peer():
+    return q("SELECT * FROM sync_peer WHERE rolle='haupt' ORDER BY zuletzt DESC LIMIT 1", one=True) or {}
+
+
+def _m58_pending():
+    """number of changes made on THIS device that the PC does not have yet"""
+    try:
+        ms, me = int(_m58_pc_peer().get("my_sent") or 0), m58_me()
+        # device-specific settings (PIN, logins, number ranges ...) are recorded but never sent - not counted
+        rows = q("SELECT r.tbl, s.k FROM sync_row r LEFT JOIN settings s ON r.tbl='settings' AND s.rowid=r.rid WHERE r.lc>? AND r.dev=?", (ms, me))
+        return sum(1 for r in rows if not (r["tbl"] == "settings" and M58_SET_EXCL.match(str(r.get("k") or "")))) + \
+            (q("SELECT COUNT(*) n FROM sync_tomb WHERE lc>? AND dev=? AND tbl<>'settings'", (ms, me), one=True) or {}).get("n", 0)
+    except Exception:
+        return 0
+
+
+def _m58_wake(grund):
+    M58_RT.update(grund=grund, wake_t=time.time())
+    M58_WAKE.set()
+
+
+def m58_sync_now(grund="Knopf", dateien=None):
     c = m58_cfg()
     if c.get("rolle") != "mobil" or not c.get("token"):
         raise ValueError("Dieses Gerät ist nicht mit einem PC gekoppelt.")
@@ -838,7 +1268,9 @@ def m58_sync_now(grund="Knopf"):
     res = {"zeit": now_iso(), "ok": False, "text": "", "gesendet": 0, "empfangen": 0, "konflikte": 0, "dateien": {"hin": 0, "her": 0}}
     try:
         base, info = m58_find_server(c)
-        pc = q("SELECT * FROM sync_peer WHERE rolle='haupt' ORDER BY zuletzt DESC LIMIT 1", one=True) or {}
+        M58_RT.update(fehler=0, naechster=0.0)
+        gz = "gz" in (M58_RT.get("caps") or [])
+        pc = _m58_pc_peer()
         my_sent, their_recv = int(pc.get("my_sent") or 0), int(pc.get("their_recv") or 0)
         rounds = 0
         while True:
@@ -847,7 +1279,7 @@ def m58_sync_now(grund="Knopf"):
             M58_STATE["text"] = f"Abgleich läuft … (Runde {rounds})"
             mine, upto_mine = m58_changes_since(my_sent, peer=c.get("pc_dev"))
             j = _m58_json(base, "/sync/changes", {"dev": m58_me(), "name": c.get("name") or "Mobilgerät", "changes": mine,
-                                                    "ack": their_recv, "upto": upto_mine}, token=c["token"], timeout=600)
+                                                    "ack": their_recv, "upto": upto_mine}, token=c["token"], timeout=600, gz=gz)
             if not j.get("ok"):
                 raise ValueError(j.get("error") or "Abgleich abgelehnt.")
             res["gesendet"] += len(mine)
@@ -861,11 +1293,15 @@ def m58_sync_now(grund="Knopf"):
               (j.get("dev") or c.get("pc_dev") or "", c.get("pc_name") or "PC", "haupt", my_sent, their_recv, now_iso(), base, grund))
             if (my_sent, their_recv) == prev or rounds > 500:
                 break
-        if c.get("dateien", True):
+        if dateien is None:          # v1.1.0: files when data came/went, on request, at start, otherwise every 10 minutes
+            dateien = grund in ("Knopf", "Programmstart") or res["gesendet"] or res["empfangen"] or \
+                time.time() - M58_RT.get("f_last", 0) >= M58_FILE_EVERY
+        if c.get("dateien", True) and dateien:
             M58_STATE["text"] = "Dateien werden abgeglichen …"
             res["dateien"] = m58_sync_files(base, c["token"])
         neu = None
-        if c.get("programm", True):
+        if c.get("programm", True) and (grund in ("Knopf", "Programmstart") or time.time() - M58_RT.get("p_last", 0) >= 600):
+            M58_RT["p_last"] = time.time()
             try:
                 neu = m58_prog_update(base, c["token"])
             except Exception as e:
@@ -879,7 +1315,10 @@ def m58_sync_now(grund="Knopf"):
         if not isinstance(e, ValueError):
             traceback.print_exc()
         res["text"] = str(e)[:300]
+        f_ = M58_RT["fehler"] = int(M58_RT.get("fehler") or 0) + 1
+        M58_RT.update(erreichbar=False, live=False, naechster=time.time() + min(300, 15 * 2 ** min(f_ - 1, 5)))
     finally:
+        M58_RT["letzt_sync"] = time.time()
         try:
             x("INSERT INTO sync_log (zeit, peer, gesendet, empfangen, dateien_hin, dateien_her, konflikte, ok, text) VALUES (?,?,?,?,?,?,?,?,?)",
               (res["zeit"], c.get("pc_name") or "PC", res["gesendet"], res["empfangen"], res["dateien"]["hin"], res["dateien"]["her"],
@@ -887,36 +1326,140 @@ def m58_sync_now(grund="Knopf"):
         except Exception:
             pass
         M58_STATE.update(laeuft=False, text="", letzter=res)
+    # v1.1.0: PC not found at the known addresses -> search the network (IP of the PC may have changed)
+    if not res["ok"] and "nicht erreichbar" in res["text"] and M58_RT["fehler"] in (1, 3) or (not res["ok"] and M58_RT["fehler"] % 6 == 0):
+        try:
+            if m58_rediscover():
+                M58_RT["naechster"] = 0.0
+                _m58_wake("PC wiedergefunden")
+        except Exception:
+            traceback.print_exc()
     return dict(res, ok=res["ok"], error=None if res["ok"] else res["text"])
 
 
 def _m58_loop():
-    time.sleep(20)
+    """device: start, live (after own edits / when the PC reports news), interval, retry with growing pause"""
+    time.sleep(15)
     first = True
+    last_n, last_change = None, 0.0
     while True:
+        woke = M58_WAKE.wait(3)
+        M58_WAKE.clear()
         try:
             c = m58_cfg()
             if c.get("aktiv") and first:
                 m58_enable()
-            if c.get("aktiv") and c.get("rolle") == "mobil" and c.get("token"):
-                last = (M58_STATE.get("letzter") or {}).get("zeit") or ""
-                due = first and c.get("beim_start", True)
-                if not due and int(c.get("auto_min") or 0) > 0:
-                    try:
-                        due = not last or (datetime.datetime.now() - datetime.datetime.fromisoformat(last.replace(" ", "T")[:19])).total_seconds() >= int(c["auto_min"]) * 60
-                    except Exception:
-                        due = True
-                if due and not M58_STATE["laeuft"]:
-                    try:
-                        m58_sync_now("automatisch")
-                    except Exception:
-                        pass
+            if not (c.get("aktiv") and c.get("rolle") == "mobil" and c.get("token")):
+                first = False
+                continue
+            now = time.time()
+            with DB_LOCK:
+                n = CON.execute("SELECT n FROM sync_clock").fetchone()[0]
+            if n != last_n:
+                if last_n is not None:
+                    last_change = now
+                last_n = n
+            grund = ""
+            if first and c.get("beim_start", True):
+                grund = "Programmstart"
+            elif woke and M58_RT.get("grund"):
+                grund = M58_RT.get("grund")
+            elif c.get("live", True) and last_change and now - last_change >= M58_QUIET and last_change > M58_RT.get("letzt_sync", 0):
+                if _m58_pending() > 0:
+                    grund = "Änderung hier"
+                else:
+                    last_change = 0.0
+            if not grund and int(c.get("auto_min") or 0) > 0 and now - M58_RT.get("letzt_sync", 0) >= int(c["auto_min"]) * 60:
+                grund = "Intervall"
             first = False
+            M58_RT["grund"] = ""
+            if not grund or M58_STATE["laeuft"]:
+                continue
+            if now < M58_RT.get("naechster", 0) and grund != "PC wiedergefunden":
+                continue
+            m58_sync_now(grund)
         except Exception:
             traceback.print_exc()
-        time.sleep(60)
 
 
+def _m58_push_loop():
+    """device, live: a waiting request at the PC answers as soon as there is something new there"""
+    time.sleep(25)
+    while True:
+        try:
+            c = m58_cfg()
+            if not (c.get("aktiv") and c.get("rolle") == "mobil" and c.get("token") and c.get("live", True)) \
+                    or not M58_RT.get("base") or "wait" not in (M58_RT.get("caps") or []) or M58_RT.get("erreichbar") is False:
+                M58_RT["live"] = False
+                time.sleep(5)
+                continue
+            if M58_STATE["laeuft"]:
+                time.sleep(1)
+                continue
+            since = int(_m58_pc_peer().get("their_recv") or 0)
+            j = _m58_json(M58_RT["base"], f"/sync/wait?since={since}&dev={urllib.parse.quote(m58_me())}&t={M58_WAIT}",
+                          token=c["token"], timeout=M58_WAIT + 15)
+            M58_RT.update(live=True, push_ok=time.time())
+            if j.get("neu") and not M58_STATE["laeuft"]:
+                if time.time() - M58_RT.get("wake_t", 0) < 5:
+                    time.sleep(5)
+                _m58_wake("Änderung am PC")
+                time.sleep(2)
+        except Exception:
+            M58_RT["live"] = False
+            time.sleep(15)
+
+
+def _m58_responder():
+    """PC: answers the search of the devices (UDP 8781) while the interface is reachable in the home network"""
+    sock, chk, want = None, 0.0, False
+    while True:
+        try:
+            if time.time() - chk > 10:
+                chk = time.time()
+                try:
+                    want = m58_cfg().get("rolle") != "mobil" and m88_running() and m88_cfg().get("modus") == "lan"
+                except Exception:
+                    want = False
+                if want and sock is None:
+                    sock = _m58_socket.socket(_m58_socket.AF_INET, _m58_socket.SOCK_DGRAM)
+                    sock.bind(("0.0.0.0", M58_DISC_PORT))
+                    sock.settimeout(2)
+                    M58_RT["suche_aktiv"] = True
+                if not want and sock is not None:
+                    sock.close()
+                    sock = None
+                    M58_RT["suche_aktiv"] = False
+            if sock is None:
+                time.sleep(5)
+                continue
+            try:
+                data, addr = sock.recvfrom(512)
+            except _m58_socket.timeout:
+                continue
+            if data.strip() != M58_DISC_MSG:
+                continue
+            ans = {"app": "PA Rechnung", "dev": m58_me(), "name": m58_cfg().get("name") or _m58_socket.gethostname(),
+                   "port": (globals().get("M88") or {}).get("port") or 8780, "pairing": _m58_pairing(),
+                   "version": APP_VERSION, "rolle": m58_cfg().get("rolle")}
+            sock.sendto(json.dumps(ans).encode("utf-8"), addr)
+        except OSError as e:
+            M58_RT["suche_aktiv"] = False
+            M58_RT["suche_fehler"] = str(e)[:120]
+            try:
+                if sock:
+                    sock.close()
+            except Exception:
+                pass
+            sock = None
+            time.sleep(30)
+        except Exception:
+            traceback.print_exc()
+            time.sleep(10)
+
+
+HOOK_START.append(_m58_push_loop)
+HOOK_START.append(_m58_responder)
 HOOK_START.append(_m58_loop)
 
 
@@ -938,17 +1481,10 @@ def m58_view():
         toks = q("SELECT id, name, erstellt, zuletzt, zuletzt_ip FROM m88_token WHERE typ='sync' AND aktiv=1 ORDER BY id DESC")
     except Exception:
         pass
-    pend = 0
-    try:
-        p_ = q("SELECT my_sent FROM sync_peer WHERE rolle='haupt' ORDER BY zuletzt DESC LIMIT 1", one=True) or {}
-        # only changes made on THIS device (rows received from the PC also get a new local clock value)
-        ms, me = int(p_.get("my_sent") or 0), m58_me()
-        # device-specific settings (PIN, logins, number ranges ...) are recorded but never sent - not counted
-        rows = q("SELECT r.tbl, s.k FROM sync_row r LEFT JOIN settings s ON r.tbl='settings' AND s.rowid=r.rid WHERE r.lc>? AND r.dev=?", (ms, me))
-        pend = sum(1 for r in rows if not (r["tbl"] == "settings" and M58_SET_EXCL.match(str(r.get("k") or "")))) + \
-               (q("SELECT COUNT(*) n FROM sync_tomb WHERE lc>? AND dev=? AND tbl<>'settings'", (ms, me), one=True) or {}).get("n", 0)
-    except Exception:
-        pass
+    pend = _m58_pending() if c.get("rolle") == "mobil" else 0
+    now = time.time()
+    for p_ in peers:
+        p_["live"] = now - M58_LIVE.get(p_.get("dev") or "", 0) < 45
     m88c = {}
     try:
         m88c = m88_cfg()
@@ -958,15 +1494,29 @@ def m58_view():
             "me": m58_me(), "peers": peers, "zugaenge": toks, "offen": pend, "state": _m58_state(),
             "log": q("SELECT * FROM sync_log ORDER BY id DESC LIMIT 20"),
             "konflikte": q("SELECT id, zeit, tbl, uid, info FROM sync_konflikt WHERE erledigt=0 ORDER BY id DESC LIMIT 100"),
-            "server": {"aktiv": bool(m88c.get("aktiv")), "port": m88c.get("port"), "modus": m88c.get("modus")},
-            "plattform": sys.platform, "programm": m58_prog_state()}
+            "server": {"aktiv": bool(m88c.get("aktiv")), "port": m88c.get("port"), "modus": m88c.get("modus"),
+                       "suche": bool(M58_RT.get("suche_aktiv")), "suche_fehler": M58_RT.get("suche_fehler") or ""},
+            "rt": _m58_rt(), "plattform": sys.platform, "version": M58_VERSION, "programm": m58_prog_state()}
+
+
+def _m58_rt():
+    n = M58_RT.get("naechster") or 0
+    return {"live": bool(M58_RT.get("live")), "erreichbar": M58_RT.get("erreichbar"), "base": M58_RT.get("base") or "",
+            "fehler": int(M58_RT.get("fehler") or 0), "naechster_s": max(0, int(n - time.time())) if n else 0}
+
+
+def m58_status():
+    c = m58_cfg()
+    return {"ok": True, "state": _m58_state(), "rt": _m58_rt(), "offen": _m58_pending() if c.get("rolle") == "mobil" else 0,
+            "live_geraete": [p_["name"] for p_ in q("SELECT dev, name FROM sync_peer WHERE rolle='mobil'")
+                             if time.time() - M58_LIVE.get(p_["dev"] or "", 0) < 45]}
 
 
 def m58_save(d):
     c = m58_cfg()
     if "adressen" in d:
         c["adressen"] = [a.strip() for a in (d.get("adressen") or []) if a and a.strip()][:8]
-    for k in ("auto_min", "beim_start", "dateien", "name", "programm"):
+    for k in ("auto_min", "beim_start", "dateien", "name", "live", "programm"):
         if k in d:
             c[k] = d[k]
     m58_cfg_save(c)
@@ -975,8 +1525,9 @@ def m58_save(d):
 
 def m58_unpair(d):
     c = m58_cfg()
-    c.update(token="", aktiv=c.get("rolle") == "haupt")
+    c.update(token="", aktiv=c.get("rolle") == "haupt", last_base="", auto_adr=[])
     m58_cfg_save(c)
+    M58_RT.update(base="", caps=[], live=False, erreichbar=None)
     return m58_view()
 
 
@@ -993,6 +1544,9 @@ HOOK_GET["/api/sync/konflikt"] = lambda h, qs: h._send(200, m58_conflict_get(qs.
 HOOK_POST["/api/sync/speichern"] = lambda h, d: h._send(200, m58_save(d))
 HOOK_POST["/api/sync/koppeln"] = lambda h, d: h._send(200, m58_pair(d))
 HOOK_POST["/api/sync/jetzt"] = lambda h, d: h._send(200, m58_sync_now("Knopf"))
+HOOK_GET["/api/sync/status"] = lambda h, qs: h._send(200, m58_status())
+HOOK_GET["/api/sync/gen"] = lambda h, qs: h._send(200, {"ok": True, "g": int(M58_RT.get("gen") or 0), "laeuft": M58_STATE["laeuft"]})
+HOOK_POST["/api/sync/suchen"] = lambda h, d: h._send(200, {"ok": True, "pcs": m58_discover()})
 HOOK_POST["/api/sync/entkoppeln"] = lambda h, d: h._send(200, m58_unpair(d))
 HOOK_POST["/api/sync/konflikt_erledigt"] = lambda h, d: h._send(200, (x("UPDATE sync_konflikt SET erledigt=1 WHERE id=? OR ?", (int(d.get("id") or 0), 1 if d.get("alle") else 0)), m58_view())[1])
 HOOK_POST["/api/sync/beenden"] = lambda h, d: h._send(200, m58_app_quit(d))
@@ -1020,6 +1574,8 @@ def m58_selftest():
         nm = zipfile.ZipFile(io.BytesIO(m58_prog_paket()["zip"])).namelist()
         if f"PA_Rechnung_v{APP_VERSION}.py" not in nm or "modules/m58_abgleich.py" not in nm or "ui.html" not in nm:
             err.append("m58: Programm-Paket unvollstaendig")
+        if [len(ch) for ch in _m58_chunks([("a", 10 << 20), ("b", 10 << 20), ("c", 1)])] != [1, 2]:
+            err.append("m58: Dateipakete falsch")
     except Exception as e:
         err.append(f"m58 Ausnahme: {e}")
     return err
