@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-# PA Rechnung - iPhone/iPad-App v1.0.0 (Programm v3.7.0)
+# PA Rechnung - iPhone/iPad-App v1.1.0 (Programm v3.7.1)
+# v1.1.0: Programm-Updates kommen beim Abgleich vom PC (starter.py) - kein neuer Bau fuer jede Programmversion.
 # Startet das komplette Programm (Ordner "programm") auf dem Geraet und zeigt es im eigenen Fenster (WKWebView).
 # Daten: "Dateien"-App -> Auf meinem iPhone -> PA Rechnung -> PA Rechnung Daten (Datenbank, Belege, Projekte).
 # Oeffnen von PDFs/Exporten: iOS-Teilen-Blatt (Drucken, Mail, In Dateien sichern, Oeffnen in ...).
@@ -7,33 +8,21 @@
 # Autor: T. Pfeiffer
 import builtins
 import os
-import runpy
-import socket
-import sys
 import threading
 import traceback
 
 import toga
 from toga.style import Pack
 
-APP_IOS_VERSION = "1.0.0"
+from parechnung import starter
+
+APP_IOS_VERSION = "1.1.0"
 HERE = os.path.dirname(os.path.abspath(__file__))
 PROG = os.path.join(HERE, "programm")
 
 
-def _free_port():
-    s = socket.socket()
-    s.bind(("127.0.0.1", 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
-
-
-def _core_file():
-    for fn in sorted(os.listdir(PROG), reverse=True):
-        if fn.startswith("PA_Rechnung_v") and fn.endswith(".py"):
-            return os.path.join(PROG, fn)
-    raise FileNotFoundError("Programmdatei PA_Rechnung_v*.py fehlt im App-Paket")
+# program versions fetched from the PC (not in "Documents": must not be touched by the file sync or the Files app)
+PROG_UPDATES = os.path.join(os.path.expanduser("~"), "Library", "Application Support", "PARechnung", "programm")
 
 
 class PARechnung(toga.App):
@@ -51,12 +40,10 @@ class PARechnung(toga.App):
             docs = os.path.join(os.path.expanduser("~"), "Documents", "PA Rechnung Daten")
             os.makedirs(docs, exist_ok=True)
             os.environ["PA_RECHNUNG_DATA"] = docs
-            os.environ["PA_RECHNUNG_PORT"] = str(_free_port())
             os.environ["PA_RECHNUNG_PLATTFORM"] = "ios"
             builtins.PA_OPEN_HOOK = self._open_file
-            sys.argv = [_core_file(), "--server"]
-            g = runpy.run_path(_core_file(), run_name="pa_rechnung_core")
-            url = g["server_start"]()
+            url, info = starter.start(PROG, PROG_UPDATES)
+            print("INIT Programm:", info)
             self.loop.call_soon_threadsafe(self._show, url)
         except Exception:
             err = traceback.format_exc()
