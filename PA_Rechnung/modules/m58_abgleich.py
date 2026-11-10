@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
-# Pfeiffer-Audio Rechnung - Modul m58_abgleich  v1.0.0 (ab Programm v3.7.0)
+# Pfeiffer-Audio Rechnung - Modul m58_abgleich  v1.1.0 (ab Programm v3.7.1)
+# v1.1.0: Programm-Update fuer die iPhone-App - der PC gibt seine Programmversion beim Abgleich weiter
+#         (/sync/programm), die App legt sie in ihrem Programmordner ab und startet sie beim naechsten Oeffnen.
 # Abgleich zwischen zwei Installationen (PC = Hauptgeraet, iPhone/iPad/zweiter PC = Mobilgeraet), beide arbeiten
 # offline mit eigener Datenbank. Beim Abgleich werden nur Aenderungen ausgetauscht, in beide Richtungen.
 #  - Jede Zeile jeder Datentabelle bekommt eine weltweit eindeutige ID (sync_row.uid) und eine Version
@@ -29,7 +31,7 @@ import base64
 import sqlite3
 import secrets
 
-M58_VERSION = "1.0.0"
+M58_VERSION = "1.1.0"
 M58_LOCK = threading.RLock()
 M58_STATE = {"laeuft": False, "text": "", "letzter": None}
 M58_BATCH = 1500
@@ -108,6 +110,7 @@ def m58_cfg():
     c.setdefault("auto_min", 15)
     c.setdefault("beim_start", True)
     c.setdefault("dateien", True)
+    c.setdefault("programm", True)            # v1.1.0: mobile app takes newer program versions from the PC
     c.setdefault("name", "")
     return c
 
@@ -577,7 +580,116 @@ def m58_server_route(h, method, p, qs, tok):
         data = h.rfile.read(n) if n > 0 else b""
         m58_file_write(qs.get("rel"), data, qs.get("mtime"))
         return h._out(200, {"ok": True})
+    if p == "/sync/programm" and method == "GET":
+        pk = m58_prog_paket()
+        return h._out(200, {"ok": True, "version": pk["ver"], "sha256": pk["sha"], "groesse": len(pk["zip"])})
+    if p == "/sync/programm/paket" and method == "GET":
+        return h._out(200, m58_prog_paket()["zip"], "application/zip")
     return h._out(404, {"ok": False, "error": "Unbekannter Abgleich-Befehl"})
+
+
+# ---------------------------------------------------------------------------- program update for the mobile app (v1.1.0)
+# The PC hands its own program files (core, modules, ui, assets) to a paired mobile device. The iPhone app keeps
+# them in its own program folder (PA_RECHNUNG_PROG_DIR, set by the app) and starts the newer version at the next
+# app start. Without that folder (PC, second PC) nothing is fetched - a PC is updated with the .paupdate file.
+M58_PROG = {"ver": None, "zip": b"", "sha": ""}
+
+
+def _m58_vt(v):
+    return tuple(int(n) for n in re.findall(r"\d+", str(v or ""))[:4])
+
+
+def m58_prog_paket():
+    """ZIP of the running program version (built once, then cached)"""
+    if M58_PROG["ver"] == APP_VERSION and M58_PROG["zip"]:
+        return M58_PROG
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        z.write(os.path.abspath(__file__), f"PA_Rechnung_v{APP_VERSION}.py")
+        z.write(res_path("ui.html"), "ui.html")
+        for sub, src in (("modules", modules_dir() if os.path.isdir(modules_dir()) else res_path("modules")),
+                         ("ui", ui_dir()), ("assets", res_path("assets"))):
+            for root, dirs, files in os.walk(src):
+                dirs[:] = sorted(d_ for d_ in dirs if d_ != "__pycache__")
+                for fn in sorted(files):
+                    if not fn.endswith((".pyc", ".pyo")):
+                        fp = os.path.join(root, fn)
+                        z.write(fp, sub + "/" + os.path.relpath(fp, src).replace(os.sep, "/"))
+    data = buf.getvalue()
+    M58_PROG.update(ver=APP_VERSION, zip=data, sha=hashlib.sha256(data).hexdigest())
+    return M58_PROG
+
+
+def m58_prog_dir():
+    return os.environ.get("PA_RECHNUNG_PROG_DIR") or ""
+
+
+def _m58_prog_json(name, default):
+    try:
+        with open(os.path.join(m58_prog_dir(), name), encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return default
+
+
+def m58_prog_state():
+    st = {"version": APP_VERSION, "selbst": bool(m58_prog_dir()), "neu": None, "defekt": []}
+    if st["selbst"]:
+        a = _m58_prog_json("aktiv.json", {}) or {}
+        bad = [e for e in (_m58_prog_json("defekt.json", []) or []) if isinstance(e, dict)]
+        if _m58_vt(a.get("version")) > _m58_vt(APP_VERSION) and not any(e.get("sha") == a.get("sha") for e in bad):
+            st["neu"] = a.get("version")
+        st["defekt"] = [e.get("version") for e in bad]
+    return st
+
+
+def m58_prog_update(base, token):
+    """mobile app only: fetch a newer program version from the PC. Returns the new version (waits for the next
+    app start) or None."""
+    d = m58_prog_dir()
+    if not d:
+        return None
+    try:
+        info = _m58_json(base, "/sync/programm", token=token, timeout=30)
+    except ValueError:
+        return None                                 # PC older than v3.7.1 - cannot hand out its program
+    ver, sha = str(info.get("version") or ""), str(info.get("sha256") or "")
+    if not info.get("ok") or not re.fullmatch(r"\d+(\.\d+){1,3}", ver) or _m58_vt(ver) <= _m58_vt(APP_VERSION):
+        return None
+    if any(isinstance(e, dict) and e.get("sha") == sha for e in (_m58_prog_json("defekt.json", []) or [])):
+        return None                                 # this very package did not start on this device - not again
+    if (_m58_prog_json("aktiv.json", {}) or {}).get("sha") == sha and os.path.isdir(os.path.join(d, ver)):
+        return ver                                  # already here, waits for the app restart
+    M58_STATE["text"] = f"Programm v{ver} wird geladen …"
+    _s, data, _h = _m58_http(base, "/sync/programm/paket", token=token, timeout=600)
+    if hashlib.sha256(data).hexdigest() != sha:
+        raise ValueError("Programm-Update unvollständig übertragen.")
+    z = zipfile.ZipFile(io.BytesIO(data))
+    names = [n for n in z.namelist() if not n.endswith("/")]
+    if f"PA_Rechnung_v{ver}.py" not in names or "ui.html" not in names or not any(n.startswith("modules/m01") for n in names):
+        raise ValueError("Programm-Update unvollständig.")
+    tmp, dst = os.path.join(d, "_neu"), os.path.join(d, ver)
+    shutil.rmtree(tmp, ignore_errors=True)
+    for n in names:
+        if n.startswith(("/", "\\")) or ":" in n or ".." in n.replace("\\", "/").split("/"):
+            raise ValueError("Programm-Update enthält unzulässige Pfade.")
+        fp = os.path.join(tmp, *n.split("/"))
+        os.makedirs(os.path.dirname(fp), exist_ok=True)
+        with open(fp, "wb") as f:
+            f.write(z.read(n))
+    shutil.rmtree(dst, ignore_errors=True)
+    os.replace(tmp, dst)
+    with open(os.path.join(d, "aktiv.json"), "w", encoding="utf-8") as f:
+        json.dump({"version": ver, "sha": sha, "zeit": now_iso(), "von": base}, f)
+    return ver
+
+
+def m58_app_quit(d):
+    """iPhone app: close the app so that the next start runs the new program version"""
+    if not m58_prog_dir():
+        raise ValueError("Nur in der iPhone-App.")
+    threading.Timer(0.7, lambda: os._exit(0)).start()
+    return {"ok": True}
 
 
 # ---------------------------------------------------------------------------- client side (mobile device)
@@ -752,9 +864,17 @@ def m58_sync_now(grund="Knopf"):
         if c.get("dateien", True):
             M58_STATE["text"] = "Dateien werden abgeglichen …"
             res["dateien"] = m58_sync_files(base, c["token"])
+        neu = None
+        if c.get("programm", True):
+            try:
+                neu = m58_prog_update(base, c["token"])
+            except Exception as e:
+                res["programm_fehler"] = str(e)[:200]
         res["ok"] = True
         res["text"] = (f"{res['gesendet']} Änderungen gesendet, {res['empfangen']} empfangen, Dateien {res['dateien']['hin']} hin / "
-                       f"{res['dateien']['her']} her" + (f", {res['konflikte']} Konflikt(e)" if res["konflikte"] else ""))
+                       f"{res['dateien']['her']} her" + (f", {res['konflikte']} Konflikt(e)" if res["konflikte"] else "")
+                       + (f" – Programm v{neu} geladen: App schließen und neu öffnen" if neu else "")
+                       + (f" – Programm-Update: {res['programm_fehler']}" if res.get("programm_fehler") else ""))
     except Exception as e:
         if not isinstance(e, ValueError):
             traceback.print_exc()
@@ -839,14 +959,14 @@ def m58_view():
             "log": q("SELECT * FROM sync_log ORDER BY id DESC LIMIT 20"),
             "konflikte": q("SELECT id, zeit, tbl, uid, info FROM sync_konflikt WHERE erledigt=0 ORDER BY id DESC LIMIT 100"),
             "server": {"aktiv": bool(m88c.get("aktiv")), "port": m88c.get("port"), "modus": m88c.get("modus")},
-            "plattform": sys.platform}
+            "plattform": sys.platform, "programm": m58_prog_state()}
 
 
 def m58_save(d):
     c = m58_cfg()
     if "adressen" in d:
         c["adressen"] = [a.strip() for a in (d.get("adressen") or []) if a and a.strip()][:8]
-    for k in ("auto_min", "beim_start", "dateien", "name"):
+    for k in ("auto_min", "beim_start", "dateien", "name", "programm"):
         if k in d:
             c[k] = d[k]
     m58_cfg_save(c)
@@ -875,6 +995,7 @@ HOOK_POST["/api/sync/koppeln"] = lambda h, d: h._send(200, m58_pair(d))
 HOOK_POST["/api/sync/jetzt"] = lambda h, d: h._send(200, m58_sync_now("Knopf"))
 HOOK_POST["/api/sync/entkoppeln"] = lambda h, d: h._send(200, m58_unpair(d))
 HOOK_POST["/api/sync/konflikt_erledigt"] = lambda h, d: h._send(200, (x("UPDATE sync_konflikt SET erledigt=1 WHERE id=? OR ?", (int(d.get("id") or 0), 1 if d.get("alle") else 0)), m58_view())[1])
+HOOK_POST["/api/sync/beenden"] = lambda h, d: h._send(200, m58_app_quit(d))
 HOOK_BOOT.append(lambda d: d.update(sync={"rolle": m58_cfg().get("rolle"), "gekoppelt": bool(m58_cfg().get("token")), "laeuft": M58_STATE["laeuft"]}))
 
 
@@ -894,6 +1015,11 @@ def m58_selftest():
                 pass
         if "invoices" not in m58_tables() or "audit_log" in m58_tables():
             err.append("m58: Tabellenauswahl falsch")
+        if not (_m58_vt("3.10.0") > _m58_vt("3.9.9") > _m58_vt("3.9")):
+            err.append("m58: Versionsvergleich falsch")
+        nm = zipfile.ZipFile(io.BytesIO(m58_prog_paket()["zip"])).namelist()
+        if f"PA_Rechnung_v{APP_VERSION}.py" not in nm or "modules/m58_abgleich.py" not in nm or "ui.html" not in nm:
+            err.append("m58: Programm-Paket unvollstaendig")
     except Exception as e:
         err.append(f"m58 Ausnahme: {e}")
     return err
