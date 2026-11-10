@@ -5,7 +5,7 @@
 // =============================================================
 //  Pfeiffer-Audio Rechnung - UI v1.5.0
 // =============================================================
-const UI_VERSION = "3.7.1";
+const UI_VERSION = "3.8.1";
 // v2.0.0: Andockpunkte fuer UI-Module (/ui/_all.js)
 const EXT = {nav:[], views:{}, dash:[], settings:[], editor:[], project:[], beleg:[], tax:[], after:[]};
 function extNav(section){ return EXT.nav.filter(n => n.section === section).map(n => { const c = n.cnt ? n.cnt() : ""; return `<button class="nav ${view===n.key?"on":""}" data-go="${n.key}">${ic(n.icon||"dash")}<span>${n.label}</span>${c?`<span class="cnt">${c}</span>`:""}</button>`; }).join(""); }
