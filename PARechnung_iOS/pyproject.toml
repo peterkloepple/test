@@ -1,4 +1,4 @@
-# PA Rechnung - iPhone/iPad-App  v1.2.0 (Programm v3.7.1)
+# PA Rechnung - iPhone/iPad-App  v1.2.1 (Programm v3.8.1)
 # v1.2.0: App holt neue Programmversionen beim Abgleich vom PC (starter.py)
 # v1.1.4: reportlab (braucht Pillow) wird ebenfalls im Bau-Ablauf fuer iPhone arm64 eingebaut
 # v1.1.3: Pillow wird im Bau-Ablauf fest fuer iPhone (arm64) eingebaut, std-nslog entfaellt
@@ -11,7 +11,7 @@
 [tool.briefcase]
 project_name = "PA Rechnung"
 bundle = "de.tpfeiffer"
-version = "3.7.1"
+version = "3.8.1"
 url = "https://localhost/"
 license.text = "Privat - T. Pfeiffer"
 author = "T. Pfeiffer"
