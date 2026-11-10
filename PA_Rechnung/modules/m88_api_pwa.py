@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 # Pfeiffer-Audio Rechnung - Modul m88_api_pwa (v2.0.19, Baustellen-Modus ab v3.5.0, Kalender ab v3.6.2)
+# v1.5.0: Abgleich-Zugang (Token-Art sync) auf /sync/ zaehlt nicht zum Anfragen-Limit (Dateipakete, Live-Warten).
 # v1.4.0: Abgleich mit Mobilgeraeten (m58) unter /sync/ - eigener Zugang (Token-Art sync, nur fuer /sync/).
 # v1.3.0: iPhone-App (nativ): Kopplung liefert der App den Token im Klartext (nur bei {"app": true}, einmalig);
 #         Handy-Seite zeigt in der App "Dokument scannen" und ein Zahnrad fuer die App-Einstellungen.
@@ -19,7 +20,7 @@
 import secrets
 import collections
 
-M88_VERSION = "1.4.0"
+M88_VERSION = "1.5.0"
 M88_DEFAULTS = {"aktiv": False, "port": 8780, "modus": "lokal", "rate": 120, "geraet_tage": 365}
 M88_PAIR_TTL = 10 * 60
 M88_MAX_UPLOAD_MB = 25
@@ -789,6 +790,16 @@ class M88Handler(BaseHTTPRequestHandler):
                         d_.pop(k_, None)
         return True, ""
 
+    def _sync_ok(self, p):
+        """v1.5.0: paired sync device on /sync/ - not counted for the request limit (file packages, live waiting)"""
+        if not p.startswith("/sync/"):
+            return False
+        a = (self.headers.get("Authorization") or "").strip()
+        if not a.lower().startswith("bearer "):
+            return False
+        r = m88_check_token(a[7:].strip())
+        return bool(r and r.get("typ") == "sync")
+
     def _fail(self):
         with M88["lock"]:
             M88["fails"][self._ip()].append(time.time())
@@ -860,7 +871,7 @@ class M88Handler(BaseHTTPRequestHandler):
         tok = None
         self._status = 0
         try:
-            ok, why = self._rate_ok()
+            ok, why = (True, "") if self._sync_ok(p) else self._rate_ok()
             if not ok:
                 return self._out(429, {"ok": False, "error": why})
             if self._xsite(p):
@@ -965,7 +976,7 @@ class M88Handler(BaseHTTPRequestHandler):
         tok = None
         self._status = 0
         try:
-            ok, why = self._rate_ok()
+            ok, why = (True, "") if self._sync_ok(p) else self._rate_ok()
             if not ok:
                 return self._out(429, {"ok": False, "error": why})
             if self._xsite(p):
