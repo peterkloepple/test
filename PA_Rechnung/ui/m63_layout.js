@@ -4,6 +4,9 @@
 // - Eintraege zwischen Rubriken ziehen, ausblenden, Rubriken anlegen/umbenennen/faerben/einklappen
 // - Editor-Bereiche (Bausteine, Arbeitsbereich, Vorschau) andocken (links/rechts/oben/unten) oder schweben
 // Gespeichert in den Einstellungen (ui_layout) - gilt fuer diesen Datenordner.
+// v1.1.0 (Programm v3.8.0): der Menue-AUFBAU (Rubriken, Reihenfolge, Namen, Farben, eingeklappt, ausgeblendete Eintraege)
+//   steht zusaetzlich in "ui_menu" und wird mit iPhone/iPad/zweitem PC abgeglichen (m58). Andock-Seite, Fenster-
+//   Positionen und Breiten bleiben je Geraet (ui_layout). Neuere Fassung (Zeitstempel ts) gewinnt.
 // Autor: T. Pfeiffer
 (function(){
   "use strict";
@@ -47,6 +50,7 @@
     let l = null;
     try { l = S.settings.ui_layout && typeof S.settings.ui_layout === "object" ? JSON.parse(JSON.stringify(S.settings.ui_layout)) : null; } catch (e) { l = null; }
     if (!l || !Array.isArray(l.sections)) l = defLayout();
+    l = mergeMenu(l);
     const ids = new Set();
     l.sections = l.sections.filter(s => s && typeof s === "object" && typeof s.id === "string" && s.id && !ids.has(s.id) && ids.add(s.id));
     l.sections.forEach(s => { if (!Array.isArray(s.items)) s.items = []; s.items = s.items.filter(k => typeof k === "string");
@@ -80,7 +84,33 @@
     ["set", "_foot"].forEach(k => { if (!l.sections.some(s => s.items.includes(k))) (l.sections[0] || (l.sections[0] = {id:"s_kopf", title:"", dock:"left", items:[]})).items.push(k); });
     return l;
   }
-  function save(){ clearTimeout(saveT); saveT = setTimeout(() => { S.settings.ui_layout = L; api("/api/settings/save", {ui_layout:L}, {quiet:true}); }, 300); }
+  function save(){ clearTimeout(saveT); saveT = setTimeout(() => {
+    const m = menuOf(L); L.menu_ts = m.ts; S.settings.ui_layout = L; S.settings.ui_menu = m;
+    api("/api/settings/save", {ui_layout:L, ui_menu:m}, {quiet:true}); }, 300); }
+
+  // ---------- v1.1.0: menu structure shared with the other devices ----------
+  function menuOf(l){
+    return {v:1, ts:Date.now(), hidden:(l.hidden || []).slice(),
+      sections:(l.sections || []).map(s => ({id:s.id, title:s.title || "", color:s.color || "", sep:!!s.sep, collapsed:!!s.collapsed, items:(s.items || []).slice()}))};
+  }
+  function mergeMenu(l){
+    const m = S.settings.ui_menu;
+    if (!m || typeof m !== "object" || !Array.isArray(m.sections) || !m.sections.length || !(+m.ts > (+l.menu_ts || 0))) return l;
+    const loc = {}; (l.sections || []).forEach(s => { if (s && s.id) loc[s.id] = s; });
+    l.sections = m.sections.filter(ms => ms && typeof ms.id === "string").map(ms => {
+      const b = loc[ms.id] || {dock:"left"};
+      const o = {id:ms.id, title:typeof ms.title === "string" ? ms.title : "", dock:b.dock || "left", items:Array.isArray(ms.items) ? ms.items.slice() : []};
+      ["x", "y", "w", "h"].forEach(k => { if (b[k] != null) o[k] = b[k]; });      // position stays on this device
+      if (ms.color) o.color = ms.color; if (ms.sep) o.sep = true; if (ms.collapsed) o.collapsed = true;
+      return o; });
+    l.hidden = Array.isArray(m.hidden) ? m.hidden.slice() : [];
+    l.menu_ts = +m.ts;
+    return l;
+  }
+  // first start with v3.8.0: a menu arranged on the PC is offered to the devices once
+  setTimeout(() => { try {
+    if (!S.settings.ui_menu && S.settings.ui_layout && !(S.sync && S.sync.rolle === "mobil")) { L = L || load(); save(); }
+  } catch (e) {} }, 4000);
 
   // ---------- counters (same as the classic sidebar) ----------
   function cnt(it){
