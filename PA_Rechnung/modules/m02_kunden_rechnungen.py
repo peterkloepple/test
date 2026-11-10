@@ -554,8 +554,9 @@ def render_invoice_pdf(inv, s=None, attachments=True):
             meta = [(L('Datum'), _rf_date(inv.get("datum"))), (L('Gültig bis'), _rf_date(inv.get("gueltig_bis"))), (L('Seite'), "1"),
                     (L('Kunden-Nr.'), inv.get("kdnr", "")), (nrlabel, inv.get("nr", ""))]
         else:
-            meta = [(L('Lieferdatum'), _rf_date(inv.get("liefer"))), (L('Auftragsdatum'), _rf_date(inv.get("auftrag"))),
-                    (L('Seite'), "1"), (L('Datum'), _rf_date(inv.get("datum"))), (L('Kunden-Nr.'), inv.get("kdnr", "")),
+            # v3.7.1: Lieferdatum/Auftragsdatum no longer printed in the header block - only Datum
+            # (values stay stored and still go into the e-invoice XML)
+            meta = [(L('Seite'), "1"), (L('Datum'), _rf_date(inv.get("datum"))), (L('Kunden-Nr.'), inv.get("kdnr", "")),
                     (nrlabel, inv.get("nr", ""))]
         meta = [m for m in meta if m[1] or m[0] not in (L('Lieferdatum'), L('Auftragsdatum'), L('Kunden-Nr.'), L('Gültig bis'))]
         bases = [182, 195, 209, 222, 236, 250][-len(meta):]
