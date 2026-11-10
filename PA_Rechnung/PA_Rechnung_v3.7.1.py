@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # =============================================================================
-#  Pfeiffer-Audio Rechnung  -  v3.7.0
+#  Pfeiffer-Audio Rechnung  -  v3.7.1
 #  Rechnungen aus Bausteinen, Kundendatenbank, Projekte mit Dateistruktur,
 #  Belege-Import (PDF mit Erkennung), Statistik, Jahresabrechnung, Steuer.
 #  Autor: T. Pfeiffer
@@ -16,7 +16,7 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, unquote
 
 APP_NAME = "Pfeiffer-Audio Rechnung"
-APP_VERSION = "3.7.0"
+APP_VERSION = "3.7.1"
 
 # ----------------------------------------------------------------------------
 # Paths
