@@ -251,6 +251,12 @@ struct BeamerOpt: Hashable {
     let param: String
 }
 
+struct BeamerMenuSpec: Hashable {
+    let title: String
+    let cmd: String
+    let options: [BeamerOpt]
+}
+
 struct BeamerKnob: Hashable {
     let label: String
     let cmd: String
@@ -345,10 +351,12 @@ enum BeamerTables {
     static let cmsRGB = o([("Standard", "  00"), ("sRGB", "  01"), ("Custom 1", "  11"),
                            ("Custom 2", "  12"), ("Custom 3", "  13")])
     static let cmsVideo = o([("Standard", "  00"), ("Custom 1", "  11"), ("Custom 2", "  12"), ("Custom 3", "  13")])
-    static let cmsRows: [(String, String, [BeamerOpt])] = [
-        ("Eingang 1 (RGB 1)", "CSRA", cmsRGB), ("Eingang 2 (RGB 2)", "CSRB", cmsRGB),
-        ("Eingang 3 (DVI)", "CSRC", cmsRGB), ("Eingang 4 (Video 1)", "CSVA", cmsVideo),
-        ("Eingang 5 (Video 2)", "CSVB", cmsVideo),
+    static let cmsRows: [BeamerMenuSpec] = [
+        BeamerMenuSpec(title: "Eingang 1 (RGB 1)", cmd: "CSRA", options: cmsRGB),
+        BeamerMenuSpec(title: "Eingang 2 (RGB 2)", cmd: "CSRB", options: cmsRGB),
+        BeamerMenuSpec(title: "Eingang 3 (DVI)", cmd: "CSRC", options: cmsRGB),
+        BeamerMenuSpec(title: "Eingang 4 (Video 1)", cmd: "CSVA", options: cmsVideo),
+        BeamerMenuSpec(title: "Eingang 5 (Video 2)", cmd: "CSVB", options: cmsVideo),
     ]
     static let cmsTarget = o([("Rot", "   1"), ("Gelb", "   2"), ("Grün", "   3"),
                               ("Cyan", "   4"), ("Blau", "   5"), ("Magenta", "   6")])
@@ -599,7 +607,7 @@ final class BeamerModel: DeviceModel {
 
     func sendKnob(_ k: BeamerKnob) {
         let v = knobValue(k)
-        send(k.cmd, SharpBeamerClient.param(v, k.lo, k.hi), "\(k.label) \(v)", )
+        send(k.cmd, SharpBeamerClient.param(v, k.lo, k.hi), "\(k.label) \(v)")
     }
 
     func stepKnob(_ k: BeamerKnob, _ delta: Int) {
@@ -960,8 +968,8 @@ struct BeamerView: View {
     private var cmsSection: some View {
         Section {
             DisclosureGroup(isExpanded: $showCMS) {
-                ForEach(BeamerTables.cmsRows, id: \.1) { row in
-                    BeamerMenuRow(model: model, title: row.0, symbol: "paintpalette", cmd: row.1, options: row.2)
+                ForEach(BeamerTables.cmsRows, id: \.self) { row in
+                    BeamerMenuRow(model: model, title: row.title, symbol: "paintpalette", cmd: row.cmd, options: row.options)
                 }
                 BeamerMenuRow(model: model, title: "Zielfarbe", symbol: "scope", cmd: "CMTG", options: BeamerTables.cmsTarget)
                 ForEach(BeamerTables.cmsKnobs, id: \.self) { k in
