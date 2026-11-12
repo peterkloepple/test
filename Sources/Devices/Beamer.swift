@@ -445,7 +445,8 @@ final class BeamerModel: DeviceModel {
             if let p = try await client.command("POWR", "????", settings: s) {
                 handle("POWR", "????", p)
             }
-            if let i = try await client.command("ICHK", "????", settings: s) {
+            // Eingang im Standby evtl. ohne Antwort -> kein Offline-Status deswegen
+            if let r = try? await client.command("ICHK", "????", settings: s, timeout: 1.5), let i = r {
                 handle("ICHK", "????", i)
             }
             if await client.consumeFreshLogin() {

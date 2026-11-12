@@ -1033,6 +1033,8 @@ final class PrinterModel: DeviceModel {
     private var lastClean = Date.distantPast
     private var cleanCount = 0
     private var lastInkWarn: [String]? = nil
+    private var lastIPPError: String? = nil
+    private var lastSNMPError: String? = nil
 
     init() {
         super.init(id: "printer", title: "Drucker", subtitle: "Epson WorkForce WF-7830",
@@ -1110,9 +1112,11 @@ final class PrinterModel: DeviceModel {
                 }
                 if !raw.isEmpty { source = "IPP" }
                 self.ippVia = ipp.via
+                self.lastIPPError = nil
             } else {
                 self.ippVia = ""
-                if self.lastError == nil { self.addLog("IPP: \(ipp.error)", error: true) }
+                if self.lastIPPError != ipp.error { self.addLog("IPP: \(ipp.error)", error: true) }
+                self.lastIPPError = ipp.error
             }
 
             var snmpOK = false
@@ -1138,8 +1142,11 @@ final class PrinterModel: DeviceModel {
                     inf.uptime = PrinterProto.fmtUptime(Int(tt / 100))
                 }
             case .failure(let e):
-                if ipp.attrs != nil { self.addLog("SNMP: \(e.localizedDescription)", error: true) }
+                let m = e.localizedDescription
+                if ipp.attrs != nil && self.lastSNMPError != m { self.addLog("SNMP: \(m)", error: true) }
+                self.lastSNMPError = m
             }
+            if snmpOK { self.lastSNMPError = nil }
 
             if ipp.attrs == nil && !snmpOK {
                 throw NetError.protocolError("Weder IPP noch SNMP erreichbar (\(ipp.error))")

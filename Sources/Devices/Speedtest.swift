@@ -314,8 +314,8 @@ final class SpeedtestEngine {
     let duration: Double
     let warmup: Double = 2.0
 
-    var onSample: ((String, Double, Double) -> Void)?
-    var onPhase: ((String) -> Void)?
+    var onSample: (@Sendable (String, Double, Double) -> Void)?
+    var onPhase: (@Sendable (String) -> Void)?
 
     private let lock = NSLock()
     private var cancelled = false
