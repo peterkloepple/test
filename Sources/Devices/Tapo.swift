@@ -198,7 +198,7 @@ final class TapoKlapClient {
             ah = ah2
             isV1 = false
         } else {
-            throw TapoKlapError.auth("Auth fehlgeschlagen - E-Mail/Passwort pruefen (Server-Hash passt weder zu v1 noch v2)")
+            throw TapoKlapError.auth("Auth fehlgeschlagen - E-Mail/Passwort prüfen (Server-Hash passt weder zu v1 noch v2)")
         }
 
         let hs2 = isV1 ? Crypto.sha256(TapoKlap.cat(rs, ah)) : Crypto.sha256(TapoKlap.cat(rs, ls, ah))
@@ -277,7 +277,7 @@ func tapoErrorCode(_ resp: [String: Any]) -> Int {
 /// _chk aus Python: error_code != 0 -> Fehler
 func tapoCheck(_ resp: [String: Any]) throws {
     let ec = tapoErrorCode(resp)
-    if ec != 0 { throw TapoKlapError.failed("Geraet meldet error_code=\(ec)") }
+    if ec != 0 { throw TapoKlapError.failed("Gerät meldet error_code=\(ec)") }
 }
 
 func tapoCleanIP(_ s: String) -> String {
@@ -322,7 +322,7 @@ func tapoTypeLabel(_ dtype: String, _ model: String) -> String {
     if let l = lab, !model.isEmpty { return "\(l) \(model)" }
     if let l = lab { return l }
     if !model.isEmpty { return model }
-    return dtype.isEmpty ? "Tapo-Geraet" : dtype
+    return dtype.isEmpty ? "Tapo-Gerät" : dtype
 }
 
 /// Eigene IPv4 des iPhones (WLAN en0 bevorzugt) ueber getifaddrs.
@@ -380,8 +380,8 @@ struct TapoScanHit: Identifiable, Hashable {
 
     /// Name fuer die Uebernahme (wie adopt_ip in Python)
     var adoptName: String {
-        if label == "(Typ ungeprueft)" || label == "anderes Konto" || label.isEmpty {
-            return "Geraet " + (ip.split(separator: ".").last.map { String($0) } ?? ip)
+        if label == "(Typ ungeprüft)" || label == "anderes Konto" || label.isEmpty {
+            return "Gerät " + (ip.split(separator: ".").last.map { String($0) } ?? ip)
         }
         return label
     }
@@ -645,7 +645,7 @@ final class TapoModel: DeviceModel {
             return
         }
         let parts = own.split(separator: ".")
-        guard parts.count == 4 else { scanInfo = "Ungueltige eigene Adresse \(own)"; return }
+        guard parts.count == 4 else { scanInfo = "Ungültige eigene Adresse \(own)"; return }
         let base = parts[0..<3].joined(separator: ".") + "."
         scanQueue = (1...254).map { base + String($0) }
         scanIndex = 0
@@ -671,7 +671,7 @@ final class TapoModel: DeviceModel {
             addLog("Scan abgebrochen. Bisher gefunden: \(scanFound.count)")
         } else {
             scanInfo = "Fertig - gefunden: \(scanFound.count)"
-            addLog("Scan fertig. Gefundene Geraete: \(scanFound.count)")
+            addLog("Scan fertig. Gefundene Geräte: \(scanFound.count)")
         }
         scanRunning = false
         scanStop = false
@@ -694,7 +694,7 @@ final class TapoModel: DeviceModel {
     private func scanProbe(_ ip: String, user: String, pw: String) async -> TapoScanHit? {
         guard await TCPConnection.probe(host: ip, port: 80, timeout: 0.6) else { return nil }
         guard await isTapo(ip) else { return nil }
-        if user.isEmpty || pw.isEmpty { return TapoScanHit(ip: ip, label: "(Typ ungeprueft)") }
+        if user.isEmpty || pw.isEmpty { return TapoScanHit(ip: ip, label: "(Typ ungeprüft)") }
         let c = TapoKlapClient(ip: ip, timeout: 3)
         do {
             let info = try await c.request(user: user, pw: pw, json: TapoKlap.jsonGetInfo)

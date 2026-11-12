@@ -139,7 +139,7 @@ final class TouchpanelCIP {
     func configure(host: String, port: Int, ipidHex: String) throws {
         guard let p = UInt16(exactly: port), p > 0 else { throw NetError.badAddress("\(host):\(port)") }
         guard let v = Int(ipidHex.trimmed, radix: 16) else {
-            throw NetError.protocolError("Ungueltige IP-ID (hex): \(ipidHex)")
+            throw NetError.protocolError("Ungültige IP-ID (hex): \(ipidHex)")
         }
         self.host = host.trimmed
         self.port = p
@@ -229,7 +229,7 @@ final class TouchpanelCIP {
 
     private func validJoin(_ join: Int) -> Bool {
         if join < 1 || join > 65535 {
-            log("Join \(join) ungueltig (1...65535)")
+            log("Join \(join) ungültig (1...65535)")
             return false
         }
         return true
@@ -302,7 +302,7 @@ final class TouchpanelCIP {
         while alive(g) {
             guard let c = try? TCPConnection(host: host, port: port) else {
                 if !warned {
-                    log("Ungueltige Adresse \(host):\(port)")
+                    log("Ungültige Adresse \(host):\(port)")
                     warned = true
                 }
                 setLink(false)
@@ -552,7 +552,7 @@ final class TouchpanelModel: DeviceModel {
             try cip.configure(host: settings.host, port: settings.port, ipidHex: settings.ipid)
         } catch {
             lastError = DeviceModel.describe(error)
-            addLog("Ungueltige CIP-Parameter: \(DeviceModel.describe(error))", error: true)
+            addLog("Ungültige CIP-Parameter: \(DeviceModel.describe(error))", error: true)
             return
         }
         cip.start()

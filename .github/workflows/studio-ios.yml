@@ -162,10 +162,12 @@ jobs:
             name="$1"; shift
             xcrun simctl terminate "$DEV" de.tpfeiffer.studiocontrol >/dev/null 2>&1 || true
             xcrun simctl launch "$DEV" de.tpfeiffer.studiocontrol -demo "$@" >/dev/null
-            sleep 6
+            sleep 9
             xcrun simctl io "$DEV" screenshot "shots/$name.png" >/dev/null 2>&1
             echo "$name"
           }
+          # Aufwaermen: erster Start dauert laenger
+          xcrun simctl launch "$DEV" de.tpfeiffer.studiocontrol -demo >/dev/null; sleep 15
           shot 00_start
           shot 01_info -about 1
           for p in beamer tapo stegos clickshare touchpanel printer switch fritz speedport speedtest; do

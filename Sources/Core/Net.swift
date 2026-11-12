@@ -17,9 +17,9 @@ enum NetError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .timeout(let what): return "Zeitueberschreitung: \(what)"
+        case .timeout(let what): return "Zeitüberschreitung: \(what)"
         case .closed: return "Verbindung getrennt"
-        case .badAddress(let a): return "Ungueltige Adresse: \(a)"
+        case .badAddress(let a): return "Ungültige Adresse: \(a)"
         case .http(let code, let text): return "HTTP \(code): \(text)"
         case .protocolError(let t): return t
         }

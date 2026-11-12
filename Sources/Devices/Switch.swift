@@ -680,7 +680,7 @@ final class SwitchModel: DeviceModel {
         let ts = df.string(from: Date())
 
         var lines: [[String]] = []
-        lines.append(["Cisco Switch Port-Uebersicht"])
+        lines.append(["Cisco Switch Port-Übersicht"])
         lines.append(["Modell", model, "IP", ip.isEmpty ? "-" : ip, "Stand", stand])
         lines.append([])
         lines.append(["Port", "Admin", "Link", "Speed", "PoE", "IP-Adresse", "MAC-Adressen", "Beschreibung"])

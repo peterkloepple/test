@@ -231,7 +231,7 @@ final class FritzTR064Client {
             } catch {
                 if file == "tr64desc.xml" {
                     if error is URLError { throw error }
-                    throw NetError.protocolError("Fritz!Box: Zugriff fuer Anwendungen deaktiviert (Heimnetz > Netzwerk > Netzwerkeinstellungen: 'Zugriff fuer Anwendungen zulassen')")
+                    throw NetError.protocolError("Fritz!Box: Zugriff für Anwendungen deaktiviert (Heimnetz > Netzwerk > Netzwerkeinstellungen: 'Zugriff für Anwendungen zulassen')")
                 }
             }
         }
@@ -314,7 +314,7 @@ final class FritzTR064Client {
         let v = FritzLeafParser.parse(d).values
         let code = v["errorCode"] ?? ""
         let desc = v["errorDescription"] ?? ""
-        if code == "606" { return NetError.protocolError("Aktion nicht erlaubt (606) - Benutzer/Kennwort bzw. Rechte pruefen") }
+        if code == "606" { return NetError.protocolError("Aktion nicht erlaubt (606) - Benutzer/Kennwort bzw. Rechte prüfen") }
         if code == "401" { return NetError.protocolError("Aktion unbekannt (401)") }
         if code.isEmpty { return NetError.http(status, "SOAP-Fehler") }
         return NetError.protocolError("TR-064 Fehler \(code): \(desc)")

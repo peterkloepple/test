@@ -47,7 +47,7 @@ struct DevicePage<Content: View, Settings: View>: View {
             Section {
                 DisclosureGroup(isExpanded: $showLog) {
                     if model.log.isEmpty {
-                        Text("Noch keine Eintraege").foregroundStyle(.secondary).font(.footnote)
+                        Text("Noch keine Einträge").foregroundStyle(.secondary).font(.footnote)
                     }
                     ForEach(model.log.prefix(60)) { line in
                         VStack(alignment: .leading, spacing: 2) {
@@ -133,7 +133,7 @@ struct StatusCard: View {
         switch model.state {
         case .online: return "Verbunden"
         case .offline: return "Nicht erreichbar"
-        case .unknown: return "Wird geprueft ..."
+        case .unknown: return "Wird geprüft ..."
         case .notConfigured: return "Nicht eingerichtet"
         }
     }

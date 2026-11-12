@@ -85,7 +85,7 @@ final class DeviceHub: ObservableObject {
             }
         }
         if bad.isEmpty {
-            sceneMessage = ok.isEmpty ? "Kein Geraet fuer Szenen eingerichtet (je Geraet in den Einstellungen)." :
+            sceneMessage = ok.isEmpty ? "Kein Gerät für Szenen eingerichtet (je Gerät in den Einstellungen)." :
                 "\(on ? "Studio an" : "Studio aus"): \(ok.joined(separator: ", "))"
             Haptics.success()
         } else {
@@ -126,7 +126,7 @@ struct HomeView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     sceneBar
-                    Text("Geraete").font(.title3.bold()).padding(.horizontal, 4)
+                    Text("Geräte").font(.title3.bold()).padding(.horizontal, 4)
                     LazyVGrid(columns: cols, spacing: 12) {
                         ForEach(hub.all, id: \.id) { d in
                             NavigationLink(value: d.id) {
@@ -262,8 +262,8 @@ struct AboutView: View {
                     .padding(.vertical, 6)
                 }
                 Section("Hinweise") {
-                    Text("Das iPhone muss im selben Netzwerk (WLAN) wie die Geraete sein. Beim ersten Start fragt iOS nach dem Zugriff auf das lokale Netzwerk - bitte erlauben (sonst: Einstellungen > Datenschutz > Lokales Netzwerk > Studio Control).")
-                    Text("Einstellungen (IP-Adressen, Kennwoerter) liegen verschluesselt im iOS-Schluesselbund und bleiben bei Updates erhalten.")
+                    Text("Das iPhone muss im selben Netzwerk (WLAN) wie die Geräte sein. Beim ersten Start fragt iOS nach dem Zugriff auf das lokale Netzwerk - bitte erlauben (sonst: Einstellungen > Datenschutz > Lokales Netzwerk > Studio Control).")
+                    Text("Einstellungen (IP-Adressen, Kennwörter) liegen verschlüsselt im iOS-Schlüsselbund und bleiben bei Updates erhalten.")
                     Text("Szenen: In den Einstellungen von Beamer, Steckdosen und ClickShare festlegen, was 'Studio an' und 'Studio aus' schalten.")
                 }
             }

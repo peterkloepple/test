@@ -527,7 +527,7 @@ final class SpeedtestEngine: @unchecked Sendable {
         let payload = upload ? SpeedtestEngine.makePayload() : Data()
         let path = upload ? "/__up" : "/__down?bytes=\(SpeedtestEngine.downChunk)"
         guard let u = url(path) else {
-            return SpeedtestPhaseResult(errors: ["Ungueltige Adresse"])
+            return SpeedtestPhaseResult(errors: ["Ungültige Adresse"])
         }
         var workers: [SpeedtestStream] = []
         for _ in 0..<streams {

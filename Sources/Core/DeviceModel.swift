@@ -129,7 +129,7 @@ class DeviceModel: ObservableObject, Identifiable {
         let ns = error as NSError
         if ns.domain == NSURLErrorDomain {
             switch ns.code {
-            case NSURLErrorTimedOut: return "Zeitueberschreitung"
+            case NSURLErrorTimedOut: return "Zeitüberschreitung"
             case NSURLErrorCannotConnectToHost: return "Verbindung abgelehnt"
             case NSURLErrorNotConnectedToInternet: return "Kein Netzwerk"
             case NSURLErrorCannotFindHost: return "Adresse unbekannt"

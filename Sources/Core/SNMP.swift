@@ -126,7 +126,7 @@ struct SNMPClient {
     private func parse(_ d: Data) throws -> [(String, SNMPValue)] {
         var r = BER.Reader(d)
         let (t0, msg) = try r.next()
-        guard t0 == 0x30 else { throw NetError.protocolError("SNMP: ungueltige Antwort") }
+        guard t0 == 0x30 else { throw NetError.protocolError("SNMP: ungültige Antwort") }
         var m = BER.Reader(msg)
         _ = try m.next()                       // version
         _ = try m.next()                       // community
@@ -186,7 +186,7 @@ enum BER {
 
     static func encodeOID(_ s: String) throws -> Data {
         let parts = s.trimmingCharacters(in: CharacterSet(charactersIn: ". ")).split(separator: ".").compactMap { UInt64($0) }
-        guard parts.count >= 2 else { throw NetError.protocolError("OID ungueltig: \(s)") }
+        guard parts.count >= 2 else { throw NetError.protocolError("OID ungültig: \(s)") }
         var out = Data([UInt8(parts[0] * 40 + parts[1])])
         for p in parts.dropFirst(2) {
             var stack: [UInt8] = [UInt8(p & 0x7f)]
