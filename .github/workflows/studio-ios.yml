@@ -26,7 +26,7 @@ jobs:
       fail-fast: false
       matrix:
         # Intel-Mac ist meist sofort frei (macos-26 stand oft lange in der Warteschlange)
-        os: [macos-15-intel]
+        os: [macos-15-intel, macos-15]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
     steps:
@@ -125,7 +125,11 @@ jobs:
     permissions:
       contents: write
     # Bildschirmfotos aller Seiten im iPhone-Simulator (Demo-Daten) - fuer das Handbuch
-    runs-on: macos-15-intel
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15-intel, macos-15]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 70
     continue-on-error: true
     steps:
