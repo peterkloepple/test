@@ -19,7 +19,11 @@ on:
 
 jobs:
   build:
-    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15-intel, macos-15, macos-26]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
       - name: Quellcode holen
@@ -64,6 +68,6 @@ jobs:
       - name: IPA bereitstellen
         uses: actions/upload-artifact@v4
         with:
-          name: PA_AV_Toolbox_iOS_v1.0.0
+          name: PA_AV_Toolbox_iOS_v1.0.0_${{ matrix.os }}
           path: PA_AV_Toolbox_iOS_v1.0.0.ipa
           retention-days: 30
