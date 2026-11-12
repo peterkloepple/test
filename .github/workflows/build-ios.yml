@@ -8,8 +8,13 @@
 # ===========================================================================
 name: iOS-App bauen
 
+concurrency:
+  group: pa-av-toolbox-ios
+  cancel-in-progress: true
+
 on:
   push:
+    branches: [ios-app]
   workflow_dispatch:
 
 jobs:
@@ -45,7 +50,9 @@ jobs:
 
       - name: Fehlerliste bei Abbruch
         if: failure()
-        run: grep -E "error:" build.log | head -50 || true
+        run: |
+          grep -E "error:" build.log | sort -u | head -40 || true
+          grep -E "error:" build.log | sort -u | head -40 | while IFS= read -r l; do echo "::error::${l//$'\n'/ }"; done || true
 
       - name: IPA packen
         run: |
