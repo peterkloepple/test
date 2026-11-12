@@ -122,6 +122,8 @@ jobs:
           fi
 
   screenshots:
+    permissions:
+      contents: write
     # Bildschirmfotos aller Seiten im iPhone-Simulator (Demo-Daten) - fuer das Handbuch
     runs-on: macos-15-intel
     timeout-minutes: 45
@@ -177,3 +179,12 @@ jobs:
           name: screenshots
           path: shots
           retention-days: 10
+      - name: Fotos in Branch studio-ios-shots ablegen (fuer das Handbuch)
+        run: |
+          cd shots
+          git init -q -b studio-ios-shots
+          git config user.name "T. Pfeiffer"
+          git config user.email "noreply@github.com"
+          git add -A
+          git commit -q -m "Bildschirmfotos ${GITHUB_SHA::7}"
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" studio-ios-shots
