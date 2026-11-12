@@ -533,7 +533,7 @@ enum PrinterProto {
     /// ep_scheme
     static func scheme(_ v: String) -> String {
         let s = v.trimmed.lowercased()
-        let head = s.split(separator: ":", maxSplits: 1).first.map(String.init) ?? s
+        let head = s.split(separator: ":", maxSplits: 1).first.map { String($0) } ?? s
         return head.trimmingCharacters(in: CharacterSet(charactersIn: "/ ")) == "https" ? "https" : "http"
     }
 
@@ -1514,9 +1514,9 @@ struct PrinterView: View {
 
     private var statusSection: some View {
         Section {
-            ForEach(PrinterProto.st2Keys, id: \.0) { item in
-                ValueRow(label: item.1, value: model.st2.values[item.0] ?? "–",
-                         valueColor: item.0 == "Fehler" ? .red : .secondary)
+            ForEach(Array(PrinterProto.st2Keys.indices), id: \.self) { i in
+                ValueRow(label: PrinterProto.st2Keys[i].1, value: model.st2.values[PrinterProto.st2Keys[i].0] ?? "–",
+                         valueColor: PrinterProto.st2Keys[i].0 == "Fehler" ? Color.red : Color.secondary)
             }
             if let e = model.st2Error {
                 Text(e).font(.footnote).foregroundStyle(.red)
