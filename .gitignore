@@ -1,0 +1,6 @@
+# Studio Control iOS - Autor: T. Pfeiffer
+*.xcodeproj/
+build/
+Payload/
+*.ipa
+.DS_Store

@@ -1,0 +1,121 @@
+# ===========================================================================
+#  studio-ios.yml - Studio Control iOS - Cloud-Build v1.0.0
+#  Autor: T. Pfeiffer
+#  Baut auf einem Cloud-Mac von GitHub eine UNSIGNIERTE .ipa und stellt sie
+#  als Release "Studio Control iOS" zum Download bereit.
+#  Signieren + Installieren danach mit Sideloadly (Windows) und Apple-ID.
+#  Start: automatisch bei jedem Push auf den Branch studio-ios oder manuell.
+# ===========================================================================
+name: Studio-App bauen
+
+concurrency:
+  group: studio-control-ios
+  cancel-in-progress: true
+
+on:
+  push:
+    branches: [studio-ios]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-26, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    steps:
+      - name: Quellcode holen
+        uses: actions/checkout@v4
+
+      - name: Neuestes Xcode waehlen
+        run: |
+          X="$(ls -d /Applications/Xcode_26*.app /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)"
+          if [ -n "$X" ]; then sudo xcode-select -s "$X/Contents/Developer"; fi
+          xcodebuild -version
+
+      - name: XcodeGen installieren und Projekt erzeugen
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: App bauen (ohne Signatur)
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project StudioControl.xcodeproj \
+            -target StudioControl \
+            -configuration Release \
+            -sdk iphoneos \
+            SYMROOT="$PWD/build" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build > build.log 2>&1 && RC=0 || RC=$?
+          grep -E "error:|BUILD (SUCCEEDED|FAILED)" build.log | sort -u | head -80 || true
+          exit $RC
+
+      - name: Fehlerliste bei Abbruch
+        if: failure()
+        run: |
+          grep -E "error:" build.log | sed -E 's#^.*/Sources/#Sources/#' | sort -u | head -60 > errors.txt || true
+          cat errors.txt
+          n=0
+          while IFS= read -r l; do
+            n=$((n+1)); [ $n -gt 50 ] && break
+            echo "::error::${l}"
+          done < errors.txt
+
+      - name: Fehlerliste hochladen
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-${{ matrix.os }}
+          path: build.log
+          retention-days: 5
+
+      - name: IPA packen
+        run: |
+          mkdir -p Payload
+          cp -R build/Release-iphoneos/StudioControl.app Payload/
+          zip -qry StudioControl_iOS.ipa Payload
+          ls -la StudioControl_iOS.ipa
+
+      - name: IPA bereitstellen
+        uses: actions/upload-artifact@v4
+        with:
+          name: StudioControl_iOS_${{ matrix.os }}
+          path: StudioControl_iOS.ipa
+          retention-days: 30
+
+  release:
+    needs: build
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: IPA holen
+        uses: actions/download-artifact@v4
+        with:
+          pattern: StudioControl_iOS_*
+          path: ipa
+      - name: Release aktualisieren
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          F="$(find ipa -name 'StudioControl_iOS.ipa' | head -1)"
+          if [ -z "$F" ]; then echo "keine IPA gebaut"; exit 1; fi
+          VER="$(date +%Y%m%d-%H%M)"
+          cp "$F" StudioControl_iOS.ipa
+          TAG="studio-ios-latest"
+          NOTES="Studio Control iOS - Stand ${VER} (Commit ${GITHUB_SHA::7}). Installieren mit Sideloadly (Anleitung im Handbuch)."
+          if gh release view "$TAG" -R "$REPO" >/dev/null 2>&1; then
+            gh release upload "$TAG" StudioControl_iOS.ipa --clobber -R "$REPO"
+            gh release edit "$TAG" --notes "$NOTES" -R "$REPO"
+          else
+            gh release create "$TAG" StudioControl_iOS.ipa --target "$GITHUB_SHA" --title "Studio Control iOS" --notes "$NOTES" -R "$REPO"
+          fi
