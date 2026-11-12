@@ -15,6 +15,7 @@ concurrency:
 on:
   push:
     branches: [studio-ios]
+    paths-ignore: ["docs/**", "AGENT_BRIEF.md", "tests/**"]
   workflow_dispatch:
 
 permissions:
