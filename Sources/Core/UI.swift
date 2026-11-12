@@ -81,6 +81,9 @@ struct DevicePage<Content: View, Settings: View>: View {
         .onAppear {
             if DeviceModel.launchArg("-settings") == model.id { showSettings = true }
             if DeviceModel.launchArg("-log") == model.id { showLog = true }
+            if DeviceModel.demoMode, let n = Int(DeviceModel.launchArg("-scrollPage") ?? "") {
+                DemoScroll.scroll(page: n)
+            }
         }
         .task(id: phase) {
             guard phase == .active else { return }
@@ -350,5 +353,36 @@ extension Color {
     init(hex: UInt32) {
         self.init(red: Double((hex >> 16) & 0xff) / 255, green: Double((hex >> 8) & 0xff) / 255,
                   blue: Double(hex & 0xff) / 255)
+    }
+}
+
+
+// ---------------------------------------------------------------------------
+// Nur Demo/Handbuch: oberste Liste um n Bildschirmhoehen scrollen
+// ---------------------------------------------------------------------------
+enum DemoScroll {
+    static func scroll(page: Int) {
+        guard page > 0 else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+            let wins = UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.keyWindow }
+            guard let win = wins.first, var top = win.rootViewController else { return }
+            while let p = top.presentedViewController { top = p }
+            guard let sv = find(top.view) else { return }
+            let ins = sv.adjustedContentInset
+            let visible = sv.bounds.height - ins.top - ins.bottom
+            let maxY = max(-ins.top, sv.contentSize.height - sv.bounds.height + ins.bottom)
+            let y = min(CGFloat(page) * visible * 0.88 - ins.top, maxY)
+            sv.setContentOffset(CGPoint(x: 0, y: y), animated: false)
+        }
+    }
+
+    private static func find(_ v: UIView) -> UIScrollView? {
+        if let s = v as? UIScrollView, !(s is UITextView), s.contentSize.height > s.bounds.height + 20 {
+            return s
+        }
+        for c in v.subviews {
+            if let r = find(c) { return r }
+        }
+        return nil
     }
 }

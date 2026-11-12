@@ -126,7 +126,7 @@ jobs:
       contents: write
     # Bildschirmfotos aller Seiten im iPhone-Simulator (Demo-Daten) - fuer das Handbuch
     runs-on: macos-15-intel
-    timeout-minutes: 45
+    timeout-minutes: 70
     continue-on-error: true
     steps:
       - name: Quellcode holen
@@ -162,7 +162,7 @@ jobs:
             name="$1"; shift
             xcrun simctl terminate "$DEV" de.tpfeiffer.studiocontrol >/dev/null 2>&1 || true
             xcrun simctl launch "$DEV" de.tpfeiffer.studiocontrol -demo "$@" >/dev/null
-            sleep 9
+            sleep 7
             xcrun simctl io "$DEV" screenshot "shots/$name.png" >/dev/null 2>&1
             echo "$name"
           }
@@ -171,8 +171,12 @@ jobs:
           shot 00_start
           shot 01_info -about 1
           for p in beamer tapo stegos clickshare touchpanel printer switch fritz speedport speedtest; do
-            shot "p_$p" -page "$p"
-            shot "s_$p" -page "$p" -settings "$p"
+            for k in 0 1 2 3 4 5 6 7; do
+              shot "p_${p}_$k" -page "$p" -scrollPage "$k"
+            done
+            for k in 0 1 2 3; do
+              shot "s_${p}_$k" -page "$p" -settings "$p" -scrollPage "$k"
+            done
           done
           ls -la shots
       - name: Fotos hochladen
