@@ -1402,6 +1402,53 @@ final class PrinterModel: DeviceModel {
     override func disconnect() {
         watchToken += 1
     }
+
+    // ---- Demo (Start mit -demo, ohne Netzwerk) ----
+    override func loadDemo() {
+        settings.ip = "192.168.1.154"
+        settings.inkWarnPct = 15
+        var inf = PrinterInfo()
+        inf.name = "EPSON WF-7830 Series"
+        inf.model = "EPSON WF-7830 Series"
+        inf.serial = "X4BZ012345"
+        inf.firmware = "26.25.T19"
+        inf.state = "Bereit  Leerlauf"
+        inf.uptime = "3 Tage 04:12"
+        inf.pages = "12483"
+        inf.location = "Studio"
+        inf.sysName = "EPSON-WF7830"
+        inf.sysDescr = "EPSON Built-in 11b/g/n Print Server"
+        inf.reasons = ["marker-supply-low-warning"]
+        info = inf
+        inkSource = "IPP"
+        let raw: [(String, Int?, String)] = [
+            ("Black ink", 64, "black"),
+            ("Cyan ink", 47, "cyan"),
+            ("Magenta ink", 9, "magenta"),
+            ("Yellow ink", 71, "yellow"),
+        ]
+        applyInks(raw)
+        st2 = PrinterST2(values: [
+            "Status": "bereit",
+            "Warnungen": "Tinte Magenta niedrig",
+            "Tinte": "K 64 % · C 47 % · M 9 % · Y 71 %",
+            "Wartungsbox": "82 % frei",
+            "Papierstau": "Nein",
+            "Blattzaehler": "12483",
+            "Reinigungszeit": "0",
+            "Schnittstelle": "Netzwerk",
+            "Seriennummer": "X4BZ012345",
+        ], code: 0)
+        st2Error = nil
+        jobs = []
+        jobStatus = "Keine offenen Auftraege."
+        maintStatus = ""
+        ports = PrinterProto.scanPorts.map { p in
+            PrinterPortState(port: p.0, label: p.1, open: p.0 != 3289)
+        }
+        ippVia = "IPP http://192.168.1.154:631/ipp/print"
+        summary = "Bereit · Tinte min. 9 %"
+    }
 }
 
 // ---------------------------------------------------------------------------

@@ -708,6 +708,74 @@ final class SwitchModel: DeviceModel {
             addLog("CSV-Export fehlgeschlagen: \(DeviceModel.describe(error))", error: true)
         }
     }
+
+    // ---- Demo (Start mit -demo, ohne Netzwerk) ----
+    override func loadDemo() {
+        settings.model = "SG350-10P"
+        settings.ip = "192.168.1.254"
+        settings.portCount = 10
+        settings.poePorts = 8
+        settings.management = true
+        // (Port, admin, oper, speed, PoE, IP, MAC, Beschreibung)
+        let rows: [(Int, Int, Int, Int64, Int, String, String, String)] = [
+            (1, 1, 1, 1_000_000_000, 1, "192.168.1.110", "00:10:7F:A1:22:01", "Touchpanel TSW-770"),
+            (2, 1, 1, 1_000_000_000, 1, "192.168.1.100", "00:04:A5:C3:10:22", "ClickShare CX-30"),
+            (3, 1, 1, 1_000_000_000, 1, "192.168.1.130", "00:60:74:5E:31:07", "Q-SYS Core 110f"),
+            (4, 1, 1, 1_000_000_000, 1, "192.168.1.141", "00:1D:C1:0B:44:12", "PTZ-Kamera"),
+            (5, 1, 1, 100_000_000, 2, "192.168.1.50", "00:22:FA:93:0E:5C", "Beamer XG-PH50X"),
+            (6, 1, 2, 0, 2, "", "", "Reserve"),
+            (7, 1, 2, 0, 2, "", "", ""),
+            (8, 2, 2, 0, 2, "", "", "gesperrt"),
+            (9, 1, 1, 1_000_000_000, 2, "192.168.1.1", "3C:A6:2F:11:22:33", "Uplink Fritz!Box"),
+            (10, 1, 1, 1_000_000_000, 2, "192.168.1.20", "A8:5E:45:66:77:88", "Studio-PC"),
+        ]
+        var pm: [Int: SwitchPort] = [:]
+        var cm: [Int: SwitchPortCounters] = [:]
+        for r in rows {
+            var p = SwitchPort()
+            p.admin = r.1
+            p.oper = r.2
+            p.speed = r.3
+            p.poe = r.4
+            p.ip = r.5
+            p.mac = r.6
+            p.desc = r.7
+            p.vlan = 1
+            pm[r.0] = p
+            if r.2 == 1 {
+                var c = SwitchPortCounters()
+                c.name = "gi\(r.0)"
+                c.descr = "GigabitEthernet\(r.0)"
+                c.highSpeed = UInt64(r.3 / 1_000_000)
+                c.inOctets = UInt64(r.0) * 1_234_567_890
+                c.outOctets = UInt64(r.0) * 987_654_321
+                c.inErrors = 0
+                c.outErrors = 0
+                c.inDiscards = 0
+                c.outDiscards = 0
+                c.poeDetect = r.4 == 1 ? 3 : 2
+                c.inRate = Double(r.0) * 1_250_000
+                c.outRate = Double(r.0) * 640_000
+                cm[r.0] = c
+            }
+        }
+        ports = pm
+        counters = cm
+        counterError = nil
+        var sys = SwitchSystemInfo()
+        sys.name = "switch-studio"
+        sys.descr = "SG350-10P 10-Port Gigabit PoE Managed Switch"
+        sys.uptime = 123_456_700
+        sys.location = "Studio, Rack 1"
+        sys.contact = "Studio-Technik"
+        system = sys
+        lldp = [
+            SwitchLLDPNeighbor(localPort: 3, remIndex: "1", sysName: "Core110f-Studio", portId: "LAN A", portDesc: "Q-SYS LAN A"),
+            SwitchLLDPNeighbor(localPort: 9, remIndex: "2", sysName: "fritz.box", portId: "LAN 1", portDesc: "LAN 1"),
+        ]
+        lldpLoaded = true
+        summary = "switch-studio - \(countUp) aktiv, \(countPoE) PoE, \(countDisabled) gesperrt"
+    }
 }
 
 // ---------------------------------------------------------------------------

@@ -604,6 +604,51 @@ final class SpeedportModel: DeviceModel {
         }
         return lines.joined(separator: "\n")
     }
+
+    // ---- Demo (Start mit -demo, ohne Netzwerk) ----
+    override func loadDemo() {
+        settings.ip = "192.168.1.2"
+        settings.password = "demo"
+        modelInfo = "Speedport Smart 4 Typ B  010139.4.8.001.0"
+        online = "online"
+        publicIP = "84.152.37.118"
+        uptime = "2026-11-09 06:14:22"
+        down = "250 Mbit/s"
+        up = "40 Mbit/s"
+        wlanOn = true
+        guestOn = false
+        wlanSSID = "SP-Studio"
+        guestSSID = "SP-Gast"
+        devices = [
+            SpeedportDevice(id: "0-3C:A6:2F:11:22:33", name: "fritz.box", ip: "192.168.1.1",
+                            mac: "3C:A6:2F:11:22:33", typ: "LAN", active: true),
+            SpeedportDevice(id: "1-A8:5E:45:66:77:88", name: "Studio-PC", ip: "192.168.1.20",
+                            mac: "A8:5E:45:66:77:88", typ: "LAN", active: true),
+            SpeedportDevice(id: "2-F0:18:98:12:34:56", name: "iPhone-Studio", ip: "192.168.1.31",
+                            mac: "F0:18:98:12:34:56", typ: "WLAN 5 GHz", active: true),
+            SpeedportDevice(id: "3-64:EB:8C:AA:BB:CC", name: "EPSON-WF7830", ip: "192.168.1.154",
+                            mac: "64:EB:8C:AA:BB:CC", typ: "WLAN 2,4 GHz", active: true),
+            SpeedportDevice(id: "4-DC:A6:32:01:02:03", name: "MacBook-Studio", ip: "192.168.1.35",
+                            mac: "DC:A6:32:01:02:03", typ: "WLAN 5 GHz", active: false),
+        ]
+        func h(_ t: String, _ ev: String) -> SpeedportHistEntry {
+            var e = SpeedportHistEntry()
+            e.t = t
+            e.online = "online"
+            e.down = "250 Mbit/s"
+            e.up = "40 Mbit/s"
+            e.ext = "84.152.37.118"
+            e.uptime = "2026-11-09T06:14:22"
+            e.ev = ev
+            return e
+        }
+        history = [
+            h("2026-11-12 08:00:03", "Start Aufzeichnung"),
+            h("2026-11-12 08:15:04", ""),
+            h("2026-11-12 08:30:04", ""),
+        ]
+        summary = "online - \(activeCount)/\(devices.count) verbunden"
+    }
 }
 
 // ---------------------------------------------------------------------------

@@ -440,6 +440,7 @@ final class BeamerModel: DeviceModel {
 
     // ---- Status ----
     override func refresh() async {
+        if DeviceModel.demoMode { await refreshSafely {}; return }
         await refreshSafely {
             let s = settings
             if let p = try await client.command("POWR", "????", settings: s) {
@@ -668,6 +669,47 @@ final class BeamerModel: DeviceModel {
             power = on
             updateSummary()
         }
+    }
+
+    // ---- Demo (Start mit -demo, ohne Netzwerk) ----
+    override func loadDemo() {
+        settings.ip = "192.168.1.50"
+        power = true
+        input = "DVI"
+        ppInput = 3
+        connected = true
+        info = [
+            "model": "XG-PH50X",
+            "serial": "9X012345",
+            "name": "Studio-Beamer",
+            "lamp1_h": "1234 h",
+            "lamp2_h": "1187 h",
+            "lamp1_l": "62 %",
+            "lamp2_l": "64 %",
+            "freq1": "67.5 kHz",
+            "freq2": "60 Hz",
+            "lps1": "1",
+            "lps2": "1",
+            "lpn": "0",
+            "tpow": "1",
+        ]
+        values = [
+            "VOLA": 18, "AABL": 0, "AATE": 2, "AABA": 4,
+            "RCPI": 4, "RCBR": 2, "RCCO": 0, "RCTI": 0,
+            "RCRD": -2, "RCGN": 0, "RCBE": 1, "RCSH": 3, "RCWE": 5,
+            "LNZO": 40, "LNFO": -12, "LNUD": 120, "LNLR": 0, "LNDS": 0,
+            "KEYV": -6, "KEYH": 0,
+            "IAHP": 0, "IAVP": 0, "INCL": 0, "INPH": 8, "IMRS": 0,
+            "CMSL": 0, "CMSC": 2, "CMSH": 0,
+        ]
+        lastResponse = "POWR ???? -> 1"
+        terminal = [
+            "14:32:07 << 1",
+            "14:32:07 >> POWR???? <CR>",
+            "14:31:52 << OK",
+            "14:31:51 >> IRGB   3 <CR>",
+        ]
+        summary = "An - DVI"
     }
 }
 

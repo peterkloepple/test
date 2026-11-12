@@ -658,6 +658,47 @@ final class FritzModel: DeviceModel {
         }
         return lines.joined(separator: "\n")
     }
+
+    // ---- Demo (Start mit -demo, ohne Netzwerk) ----
+    override func loadDemo() {
+        settings.ip = "192.168.1.1"
+        settings.user = "studio"
+        settings.password = "demo"
+        modelName = "FRITZ!Box 3272"
+        firmware = "105.06.85"
+        wanConn = "Connected"
+        wanExt = "84.152.37.118"
+        wanUptime = "3d 04h 12m"
+        wanDown = "250.0 Mbit/s"
+        wanUp = "40.0 Mbit/s"
+        wlan = [
+            FritzWLANState(enabled: true, ssid: "Studio-WLAN"),
+            FritzWLANState(enabled: true, ssid: "Studio-WLAN-5G"),
+            FritzWLANState(enabled: false, ssid: "Studio-Gast"),
+        ]
+        hosts = [
+            FritzHost(id: "0-A8:5E:45:66:77:88", name: "Studio-PC", ip: "192.168.1.20",
+                      mac: "A8:5E:45:66:77:88", active: true, iface: "Ethernet", speed: "1000 Mbit/s"),
+            FritzHost(id: "1-F0:18:98:12:34:56", name: "iPhone-Studio", ip: "192.168.1.31",
+                      mac: "F0:18:98:12:34:56", active: true, iface: "802.11", speed: "390 Mbit/s"),
+            FritzHost(id: "2-00:10:7F:A1:22:01", name: "TSW-770", ip: "192.168.1.110",
+                      mac: "00:10:7F:A1:22:01", active: true, iface: "Ethernet", speed: "1000 Mbit/s"),
+            FritzHost(id: "3-00:04:A5:C3:10:22", name: "ClickShare-CX30", ip: "192.168.1.100",
+                      mac: "00:04:A5:C3:10:22", active: true, iface: "Ethernet", speed: "1000 Mbit/s"),
+            FritzHost(id: "4-64:EB:8C:AA:BB:CC", name: "EPSON-WF7830", ip: "192.168.1.154",
+                      mac: "64:EB:8C:AA:BB:CC", active: true, iface: "802.11", speed: "72 Mbit/s"),
+            FritzHost(id: "5-DC:A6:32:01:02:03", name: "MacBook-Studio", ip: "192.168.1.35",
+                      mac: "DC:A6:32:01:02:03", active: false, iface: "802.11", speed: ""),
+        ]
+        portMappings = [
+            FritzPortMapping(id: 0, enabled: true, proto: "TCP", extPort: "8443", intPort: "443",
+                             client: "192.168.1.130", desc: "Q-SYS Remote", remoteHost: ""),
+            FritzPortMapping(id: 1, enabled: false, proto: "UDP", extPort: "51820", intPort: "51820",
+                             client: "192.168.1.20", desc: "WireGuard", remoteHost: ""),
+        ]
+        portStatus = "2 Freigabe(n)."
+        summary = "Connected - \(activeCount)/\(hosts.count) Geräte aktiv"
+    }
 }
 
 // ---------------------------------------------------------------------------

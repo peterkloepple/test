@@ -457,6 +457,41 @@ final class ClickShareModel: DeviceModel {
         if on { return }
         try await standbyRequest()
     }
+
+    // ---- Demo (Start mit -demo, ohne Netzwerk) ----
+    override func loadDemo() {
+        settings.ip = "192.168.1.100"
+        settings.user = "admin"
+        settings.buttons = 2
+        var st = ClickShareStatus()
+        st.model = "ClickShare CX-30"
+        st.modelName = "C-30"
+        st.serial = "1863012345"
+        st.article = "R9861523EU"
+        st.hardware = "1.0"
+        st.sharing = true
+        st.voutConnected = true
+        st.voutResolution = "1920x1080 @ 60 Hz"
+        st.vinSupported = false
+        st.buttons = [
+            ClickShareButton(connected: true, status: "Teilt gerade", serial: "1872011111",
+                             mac: "00:04:A5:12:34:01", firmware: "02.18.01.0010"),
+            ClickShareButton(connected: true, status: "Bereit", serial: "1872011112",
+                             mac: "00:04:A5:12:34:02", firmware: "02.18.01.0010"),
+        ]
+        st.camera = ClickSharePeripheral(name: "Logitech MeetUp", inUse: true)
+        st.microphone = ClickSharePeripheral(name: "Logitech MeetUp", inUse: true)
+        st.speaker = ClickSharePeripheral(name: "Logitech MeetUp", inUse: false)
+        st.touch = nil
+        st.cec = true
+        st.audio = true
+        st.netInfo = false
+        st.wallpaper = true
+        st.cinema = false
+        st.saver = "10"
+        status = st
+        summary = "ClickShare CX-30 · Teilt gerade"
+    }
 }
 
 // ---------------------------------------------------------------------------

@@ -721,6 +721,50 @@ final class TapoModel: DeviceModel {
             return false
         }
     }
+
+    // ---- Demo (Start mit -demo, ohne Netzwerk) ----
+    override func loadDemo() {
+        let p1 = TapoPlug(name: "Licht Studio", ip: "192.168.1.61", inScene: true)
+        let p2 = TapoPlug(name: "Monitore", ip: "192.168.1.62", inScene: true)
+        let p3 = TapoPlug(name: "Verstaerker", ip: "192.168.1.63", inScene: true)
+        let p4 = TapoPlug(name: "Kaffeemaschine", ip: "192.168.1.64", inScene: false)
+        var s = TapoSettings()
+        s.email = "studio@example.com"
+        s.password = "demo"
+        s.plugs = [p1, p2, p3, p4]
+        s.pollInterval = 10
+        settings = s
+
+        func mk(_ on: Bool, _ nick: String, _ mac: String, _ rssi: Int, _ sig: Int, _ onTime: Int,
+                _ w: Double, _ today: Double, _ month: Double) -> TapoPlugStatus {
+            var st = TapoPlugStatus()
+            st.reachable = true
+            st.isOn = on
+            st.error = nil
+            st.model = "P110"
+            st.type = "SMART.TAPOPLUG"
+            st.fw = "1.3.1 Build 240621 Rel.162048"
+            st.hw = "1.0"
+            st.mac = mac
+            st.nickname = nick
+            st.rssi = rssi
+            st.signal = sig
+            st.onTime = on ? onTime : 0
+            st.hasEnergy = true
+            st.powerW = w
+            st.todayKWh = today
+            st.monthKWh = month
+            return st
+        }
+        status = [
+            p1.id: mk(true, "Licht Studio", "3C-52-A1-10-20-01", -48, 3, 9_840, 42.6, 0.31, 6.84),
+            p2.id: mk(true, "Monitore", "3C-52-A1-10-20-02", -55, 3, 9_790, 68.2, 0.52, 11.37),
+            p3.id: mk(true, "Verstaerker", "3C-52-A1-10-20-03", -61, 2, 9_720, 23.9, 0.19, 4.12),
+            p4.id: mk(false, "Kaffeemaschine", "3C-52-A1-10-20-04", -67, 2, 0, 0.0, 0.08, 2.95),
+        ]
+        pending = []
+        summary = makeSummary()
+    }
 }
 
 // ---------------------------------------------------------------------------

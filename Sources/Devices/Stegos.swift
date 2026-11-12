@@ -487,6 +487,64 @@ final class StegosModel: DeviceModel {
             }
         }
     }
+
+    // ---- Demo (Start mit -demo, ohne Netzwerk) ----
+    override func loadDemo() {
+        settings.ip = "192.168.1.120"
+        settings.port = 5001
+        settings.names = ["Moderation", "Gast 1", "Gast 2", "Handmikro"]
+        settings.presets = [
+            "Interview": [
+                "1": StegosPresetEntry(vol: 72, mute: false),
+                "2": StegosPresetEntry(vol: 68, mute: false),
+                "3": StegosPresetEntry(vol: 68, mute: false),
+                "4": StegosPresetEntry(vol: 60, mute: true),
+            ],
+            "Vortrag": [
+                "1": StegosPresetEntry(vol: 75, mute: false),
+                "2": StegosPresetEntry(vol: 0, mute: true),
+                "3": StegosPresetEntry(vol: 0, mute: true),
+                "4": StegosPresetEntry(vol: 65, mute: false),
+            ],
+        ]
+        connected = true
+        let vols = [72, 68, 65, 60]
+        let mutes = [false, false, false, true]
+        let bats = ["N", "N", "T", "N"]
+        let lvls = [90, 75, 40, 60]
+        let mids = ["A1F3", "A1F4", "A1F7", "B204"]
+        var chs: [StegosChannelState] = []
+        for i in 0..<StegosProto.chCount {
+            var c = StegosChannelState()
+            c.vol = vols[i]
+            c.mute = mutes[i]
+            c.active = true
+            c.batStat = bats[i]
+            c.batLvlText = String(lvls[i])
+            c.batPct = Double(lvls[i])
+            c.muid = mids[i]
+            c.sync = "belegt"
+            c.rf = "High"
+            chs.append(c)
+        }
+        channels = chs
+        sliders = vols.map { Double($0) }
+        masterSlider = 70
+        mvol = 70
+        gmute = false
+        rfBand = "High"
+        monitor = []
+        mon(.sys, "Verbunden mit 192.168.1.120:5001")
+        mon(.tx, StegosProto.pollVol)
+        mon(.rx, "CH1VOL=72")
+        mon(.rx, "CH2VOL=68")
+        mon(.rx, "CH3VOL=65")
+        mon(.rx, "CH4VOL=60")
+        mon(.tx, StegosProto.pollMute)
+        mon(.rx, "CH4MUTE=1")
+        mon(.rx, "MVOL=70")
+        summary = makeSummary()
+    }
 }
 
 // ---------------------------------------------------------------------------

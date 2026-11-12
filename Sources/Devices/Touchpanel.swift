@@ -728,6 +728,7 @@ final class TouchpanelModel: DeviceModel {
 
     // ---- Status ----
     override func refresh() async {
+        if DeviceModel.demoMode { await refreshSafely {}; return }
         if pageVisible {
             if !cip.running { startCIP() }
             var n = 0
@@ -758,6 +759,46 @@ final class TouchpanelModel: DeviceModel {
                 self.summary = "Prozessor erreichbar"
             }
         }
+    }
+
+    // ---- Demo (Start mit -demo, ohne Netzwerk) ----
+    override func loadDemo() {
+        settings.host = "192.168.1.110"
+        settings.port = 41794
+        settings.ipid = "03"
+        settings.localPreview = true
+        settings.relays = [
+            TouchpanelRelay(label: "Licht Decke", join: 1),
+            TouchpanelRelay(label: "Licht Tisch", join: 2),
+            TouchpanelRelay(label: "Beamer-Lift", join: 3),
+            TouchpanelRelay(label: "Leinwand", join: 4),
+            TouchpanelRelay(label: "Verstaerker", join: 5),
+            TouchpanelRelay(label: "Monitore", join: 6),
+            TouchpanelRelay(label: "Rotlicht", join: 7),
+            TouchpanelRelay(label: "Gong", join: 8, momentary: true),
+        ]
+        settings.scenes = [
+            "Aufnahme": [true, true, false, false, true, true, true, false],
+            "Praesentation": [false, true, true, true, true, false, false, false],
+        ]
+        let onStates = [true, true, false, false, true, true, false, false]
+        var ro: [UUID: Bool] = [:]
+        for (i, r) in settings.relays.enumerated() where i < onStates.count {
+            ro[r.id] = onStates[i]
+        }
+        relayOn = ro
+        running = true
+        online = true
+        var fb: [String: TouchpanelFeedback] = [:]
+        for (i, r) in settings.relays.enumerated() where i < onStates.count {
+            fb["D\(r.join)"] = TouchpanelFeedback(type: "D", join: r.join, value: onStates[i] ? "1" : "0")
+        }
+        fb["A1"] = TouchpanelFeedback(type: "A", join: 1, value: "32768")
+        fb["S1"] = TouchpanelFeedback(type: "S", join: 1, value: "Studio bereit")
+        feedback = fb
+        analogIn = [1: 32768]
+        serialIn = [1: "Studio bereit"]
+        summary = "Online - IP-ID 03"
     }
 }
 

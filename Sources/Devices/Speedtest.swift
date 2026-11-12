@@ -902,6 +902,55 @@ final class SpeedtestModel: DeviceModel {
             addLog("CSV nicht geschrieben: \(error.localizedDescription)", error: true)
         }
     }
+
+    // ---- Demo (Start mit -demo, ohne Netzwerk) ----
+    override func loadDemo() {
+        func mk(_ time: String, _ d: Double, _ u: Double, _ p: Double, _ j: Double) -> SpeedtestResult {
+            var r = SpeedtestResult()
+            r.time = time
+            r.engine = "Cloudflare"
+            r.server = "FRA (Frankfurt)"
+            r.isp = "Deutsche Telekom AG"
+            r.ip = "84.152.37.118"
+            r.ping = p
+            r.pingMin = p - 1.4
+            r.jitter = j
+            r.down = d
+            r.downPeak = d * 1.06
+            r.downP90 = d * 1.03
+            r.pingDown = p + 9.0
+            r.up = u
+            r.upPeak = u * 1.05
+            r.upP90 = u * 1.02
+            r.pingUp = p + 14.0
+            return r
+        }
+        let last = mk("2026-11-12 14:32:10", 251.4, 40.6, 12.1, 1.8)
+        history = [
+            last,
+            mk("2026-11-11 19:05:42", 238.7, 39.8, 13.4, 2.6),
+            mk("2026-11-10 09:12:15", 254.9, 41.2, 11.8, 1.5),
+            mk("2026-11-08 21:47:03", 196.3, 38.1, 15.9, 4.2),
+            mk("2026-11-06 12:20:31", 249.2, 40.3, 12.5, 2.0),
+        ]
+        current = last
+        var ds: [SpeedtestSample] = []
+        var us: [SpeedtestSample] = []
+        var t = 0.0
+        while t <= 17.0 {
+            let ramp = min(1.0, t / 1.5)
+            ds.append(SpeedtestSample(t: t, mbit: max(0.0, 251.0 * ramp + 9.0 * sin(t * 2.3))))
+            us.append(SpeedtestSample(t: t, mbit: max(0.0, 40.5 * ramp + 1.6 * sin(t * 1.7))))
+            t += 0.5
+        }
+        downSamples = ds
+        upSamples = us
+        liveDown = nil
+        liveUp = nil
+        running = false
+        phaseText = "Fertig 14:32"
+        summary = "↓ \(SpeedtestFmt.rate(last.down))  ↑ \(SpeedtestFmt.rate(last.up))"
+    }
 }
 
 // ---------------------------------------------------------------------------
