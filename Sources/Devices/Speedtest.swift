@@ -131,7 +131,7 @@ enum SpeedtestFmt {
 // ---------------------------------------------------------------------------
 // Thread-sichere Hilfen fuer die Messung
 // ---------------------------------------------------------------------------
-final class SpeedtestCounter {
+final class SpeedtestCounter: @unchecked Sendable {
     private let lock = NSLock()
     private var bytes: Int64 = 0
     private var stopped = false
@@ -174,7 +174,7 @@ final class SpeedtestCounter {
     }
 }
 
-final class SpeedtestValueList {
+final class SpeedtestValueList: @unchecked Sendable {
     private let lock = NSLock()
     private var items: [Double] = []
 
@@ -192,7 +192,7 @@ final class SpeedtestValueList {
 }
 
 /// Ein Download- oder Upload-Strom mit eigener URLSession (= eigene Verbindung).
-final class SpeedtestStream: NSObject, URLSessionDataDelegate {
+final class SpeedtestStream: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     private let url: URL
     private let upload: Bool
     private let payload: Data
@@ -302,7 +302,7 @@ struct SpeedtestPhaseResult {
     var errors: [String] = []
 }
 
-final class SpeedtestEngine {
+final class SpeedtestEngine: @unchecked Sendable {
     static let defaultBase = "https://speed.cloudflare.com"
     static let downChunk = 25 * 1000 * 1000
     static let upChunk = 25 * 1000 * 1000
