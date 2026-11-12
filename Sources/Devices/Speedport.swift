@@ -92,8 +92,10 @@ enum SpeedportCCM {
         var p = plain
         while p.count % 16 != 0 { p.append(0) }
         macInput.append(p)
-        let mac = [UInt8](try Crypto.aesCBCNoPad(encrypt: true, key: key, iv: Data(count: 16), data: macInput).suffix(16))
-        let s0 = [UInt8](try Crypto.aesECB(key: key, block: ctrBlock(0)))
+        let macAll = try Crypto.aesCBCNoPad(encrypt: true, key: key, iv: Data(count: 16), data: macInput)
+        let mac = [UInt8](macAll.suffix(16))
+        let s0Data = try Crypto.aesECB(key: key, block: ctrBlock(0))
+        let s0 = [UInt8](s0Data)
         var out = try Crypto.aesCTR(key: key, counter: ctrBlock(1), data: plain)
         for i in 0..<tagLen { out.append(mac[i] ^ s0[i]) }
         return out
