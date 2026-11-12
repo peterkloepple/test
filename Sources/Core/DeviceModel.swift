@@ -59,6 +59,15 @@ class DeviceModel: ObservableObject, Identifiable {
     var supportsScene: Bool { false }
     /// Szene ausfuehren (z.B. Beamer an, gewaehlte Steckdosen an). Wirft bei Fehler.
     func scene(_ on: Bool) async throws {}
+    /// Demo-Daten fuer Screenshots/Handbuch (Start mit Argument -demo)
+    func loadDemo() {}
+
+    static let demoMode = ProcessInfo.processInfo.arguments.contains("-demo")
+    static func launchArg(_ name: String) -> String? {
+        let a = ProcessInfo.processInfo.arguments
+        if let i = a.firstIndex(of: name), i + 1 < a.count { return a[i + 1] }
+        return nil
+    }
 
     // ---- Hilfen ----
     func addLog(_ text: String, error: Bool = false) {
@@ -89,6 +98,11 @@ class DeviceModel: ObservableObject, Identifiable {
 
     /// Status lesen mit Fehlerbehandlung (setzt online/offline).
     func refreshSafely(_ op: () async throws -> Void) async {
+        if DeviceModel.demoMode {
+            state = .online
+            lastUpdate = Date()
+            return
+        }
         guard isConfigured else {
             state = .notConfigured
             summary = "Nicht eingerichtet"

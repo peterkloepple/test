@@ -53,6 +53,9 @@ final class DeviceHub: ObservableObject {
 
     init() {
         for d in all { d.loadSettings() }
+        if DeviceModel.demoMode {
+            for d in all { d.loadDemo(); d.state = .online; d.lastUpdate = Date() }
+        }
     }
 
     func refreshAll() async {
@@ -114,11 +117,12 @@ final class DeviceHub: ObservableObject {
 struct HomeView: View {
     @EnvironmentObject var hub: DeviceHub
     @State private var showAbout = false
+    @State private var path: [String] = []
 
     private let cols = [GridItem(.adaptive(minimum: 158), spacing: 12)]
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     sceneBar
@@ -152,7 +156,11 @@ struct HomeView: View {
                 }
             }
             .refreshable { await hub.refreshAll() }
-            .task { await hub.refreshAll() }
+            .task {
+                if let p = DeviceModel.launchArg("-page"), path.isEmpty { path = [p] }
+                if DeviceModel.launchArg("-about") != nil { showAbout = true }
+                await hub.refreshAll()
+            }
             .sheet(isPresented: $showAbout) { AboutView() }
             .alert("Szene", isPresented: Binding(get: { hub.sceneMessage != nil }, set: { if !$0 { hub.sceneMessage = nil } })) {
                 Button("OK", role: .cancel) {}

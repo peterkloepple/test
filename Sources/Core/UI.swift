@@ -78,6 +78,10 @@ struct DevicePage<Content: View, Settings: View>: View {
             }
         }
         .refreshable { await model.refresh() }
+        .onAppear {
+            if DeviceModel.launchArg("-settings") == model.id { showSettings = true }
+            if DeviceModel.launchArg("-log") == model.id { showLog = true }
+        }
         .task(id: phase) {
             guard phase == .active else { return }
             await model.refresh()
