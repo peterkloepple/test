@@ -1,0 +1,1 @@
+Version 1.1.0: Update-Prüfung in der App, Anzeige und Erinnerung zum Ablauf der Signatur, Schnellaktionen (Kachel lange drücken), Startseite anpassen (Reihenfolge, ausblenden), Einstellungen sichern/einspielen, Fehlerprüfung aller Geräte.

@@ -8,6 +8,8 @@
 //    - Leerlauf-Latenz: 21 Anfragen /__down?bytes=0 ueber EINE Verbindung,
 //      erste verworfen, Server-Timing (dur=) abgezogen -> Median, Minimum, Jitter
 //    - Download /__down?bytes=25000000 und Upload POST /__up (25 MB je Anfrage)
+//      Upload-Nutzlast liegt als temporaere Datei vor (uploadTask fromFile), damit
+//      nicht je Strom 25 MB im Arbeitsspeicher gehalten werden
 //      ueber N parallele Verbindungen (je Strom eine eigene URLSession, damit
 //      HTTP/2 nicht alles in eine Verbindung buendelt)
 //    - Anlaufphase (2 s) wird ausgeblendet, Messung danach "duration" Sekunden
@@ -16,6 +18,7 @@
 // ===========================================================================
 import Foundation
 import SwiftUI
+import UIKit
 
 // ---------------------------------------------------------------------------
 // Einstellungen + Datentypen
@@ -196,16 +199,19 @@ final class SpeedtestStream: NSObject, URLSessionDataDelegate, @unchecked Sendab
     private let url: URL
     private let upload: Bool
     private let payload: Data
+    private let payloadFile: URL?
     private let headers: [String: String]
     private let counter: SpeedtestCounter
     private let lock = NSLock()
     private var invalidated = false
     private var session: URLSession?
 
-    init(url: URL, upload: Bool, payload: Data, headers: [String: String], counter: SpeedtestCounter) {
+    init(url: URL, upload: Bool, payload: Data, payloadFile: URL? = nil,
+         headers: [String: String], counter: SpeedtestCounter) {
         self.url = url
         self.upload = upload
         self.payload = payload
+        self.payloadFile = payloadFile
         self.headers = headers
         self.counter = counter
         super.init()
@@ -229,7 +235,12 @@ final class SpeedtestStream: NSObject, URLSessionDataDelegate, @unchecked Sendab
         if upload {
             req.httpMethod = "POST"
             req.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
-            s.uploadTask(with: req, from: payload).resume()
+            if let f = payloadFile {
+                // aus Datei gestreamt -> kein 25-MB-Block je Strom im Speicher
+                s.uploadTask(with: req, fromFile: f).resume()
+            } else {
+                s.uploadTask(with: req, from: payload).resume()
+            }
         } else {
             req.httpMethod = "GET"
             s.dataTask(with: req).resume()
@@ -497,8 +508,31 @@ final class SpeedtestEngine: @unchecked Sendable {
         }
     }
 
-    /// Nicht komprimierbare Nutzlast: 256 KB Zufall, wiederholt bis 25 MB
-    static func makePayload() -> Data {
+    /// Upload-Nutzlast als temporaere Datei (256 KB Zufall, wiederholt bis 25 MB).
+    /// nil = Datei konnte nicht geschrieben werden.
+    static func makePayloadFile() -> URL? {
+        let chunk = makePayload(bufSize)
+        let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent("speedtest_upload.bin")
+        guard FileManager.default.createFile(atPath: fileURL.path, contents: nil) else { return nil }
+        do {
+            let h = try FileHandle(forWritingTo: fileURL)
+            var written = 0
+            while written < upChunk {
+                let n = min(chunk.count, upChunk - written)
+                try h.write(contentsOf: chunk.prefix(n))
+                written += n
+            }
+            try h.close()
+            return fileURL
+        } catch {
+            try? FileManager.default.removeItem(at: fileURL)
+            return nil
+        }
+    }
+
+    /// Nicht komprimierbare Nutzlast: 256 KB Zufall, wiederholt bis "size" Bytes
+    static func makePayload(_ size: Int = SpeedtestEngine.upChunk) -> Data {
+        let total = max(1, size)
         var chunk = [UInt8](repeating: 0, count: bufSize)
         var g = SystemRandomNumberGenerator()
         var i = 0
@@ -512,9 +546,9 @@ final class SpeedtestEngine: @unchecked Sendable {
                 k += 1
             }
         }
-        var d = Data(capacity: upChunk)
-        while d.count < upChunk {
-            let n = min(chunk.count, upChunk - d.count)
+        var d = Data(capacity: total)
+        while d.count < total {
+            let n = min(chunk.count, total - d.count)
             d.append(contentsOf: chunk[0..<n])
         }
         return d
@@ -524,14 +558,20 @@ final class SpeedtestEngine: @unchecked Sendable {
     func throughput(_ phase: String) async -> SpeedtestPhaseResult {
         let upload = (phase == "up")
         let counter = SpeedtestCounter()
-        let payload = upload ? SpeedtestEngine.makePayload() : Data()
+        // Upload: Nutzlast aus Datei; nur wenn das scheitert, 4 MB im Speicher (von allen Stroemen geteilt)
+        let payloadFile: URL? = upload ? SpeedtestEngine.makePayloadFile() : nil
+        let payload = (upload && payloadFile == nil) ? SpeedtestEngine.makePayload(4 * 1000 * 1000) : Data()
+        defer {
+            if let f = payloadFile { try? FileManager.default.removeItem(at: f) }
+        }
         let path = upload ? "/__up" : "/__down?bytes=\(SpeedtestEngine.downChunk)"
         guard let u = url(path) else {
             return SpeedtestPhaseResult(errors: ["Ungültige Adresse"])
         }
         var workers: [SpeedtestStream] = []
         for _ in 0..<streams {
-            workers.append(SpeedtestStream(url: u, upload: upload, payload: payload, headers: headers, counter: counter))
+            workers.append(SpeedtestStream(url: u, upload: upload, payload: payload, payloadFile: payloadFile,
+                                           headers: headers, counter: counter))
         }
         let probeSession = makeSession(timeout: 6)
         lock.lock()
@@ -707,6 +747,16 @@ final class SpeedtestModel: DeviceModel {
         if running { cancel() }
     }
 
+    // ---- Schnellaktionen (Kachel-Kontextmenue) ----
+    override var quickActions: [QuickAction] {
+        if running {
+            return [QuickAction(id: "speedtest.cancel", title: "Messung abbrechen", symbol: "xmark.circle",
+                                run: { [weak self] in self?.cancel() })]
+        }
+        return [QuickAction(id: "speedtest.start", title: "Messung starten", symbol: "play.fill",
+                            run: { [weak self] in self?.start() })]
+    }
+
     private func updateSummary() {
         if running {
             summary = phaseText
@@ -721,6 +771,8 @@ final class SpeedtestModel: DeviceModel {
     func start() {
         guard !running else { return }
         running = true
+        // Bildschirmsperre waehrend der Messung verhindern (sonst Abbruch durch Hintergrund)
+        UIApplication.shared.isIdleTimerDisabled = true
         downSamples = []
         upSamples = []
         liveDown = nil
@@ -774,6 +826,7 @@ final class SpeedtestModel: DeviceModel {
 
     private func finish(_ r: SpeedtestResult?, _ err: Error?) {
         running = false
+        UIApplication.shared.isIdleTimerDisabled = false
         engine = nil
         if let e = err {
             let msg = DeviceModel.describe(e)
@@ -868,7 +921,12 @@ final class SpeedtestModel: DeviceModel {
 
     func deleteHistory(at offsets: IndexSet) {
         history.remove(atOffsets: offsets)
+        // geloeschte Messung nicht weiter als aktuelles Ergebnis anzeigen
+        if let c = current, !history.contains(where: { $0.id == c.id }) {
+            current = nil
+        }
         saveHistory()
+        updateSummary()
     }
 
     static func csvRow(_ r: SpeedtestResult) -> [String] {

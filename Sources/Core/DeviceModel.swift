@@ -61,6 +61,10 @@ class DeviceModel: ObservableObject, Identifiable {
     func scene(_ on: Bool) async throws {}
     /// Demo-Daten fuer Screenshots/Handbuch (Start mit Argument -demo)
     func loadDemo() {}
+    /// Schnellaktionen fuer das Kontextmenue der Kachel (langes Druecken auf der Startseite)
+    var quickActions: [QuickAction] { [] }
+    /// Alle SecureStore-Schluessel dieses Geraets (fuer Sicherung/Wiederherstellung)
+    var storeKeys: [String] { [id] }
 
     static let demoMode = ProcessInfo.processInfo.arguments.contains("-demo")
     static func launchArg(_ name: String) -> String? {
@@ -141,6 +145,15 @@ class DeviceModel: ObservableObject, Identifiable {
         if t.contains("POSIXErrorCode") || t.contains("Connection refused") { return "Verbindung abgelehnt" }
         return t
     }
+}
+
+/// Schnellaktion einer Geraete-Kachel
+struct QuickAction: Identifiable {
+    let id: String
+    let title: String
+    let symbol: String
+    var destructive: Bool = false
+    let run: () -> Void
 }
 
 enum Haptics {

@@ -1,5 +1,5 @@
 # ===========================================================================
-#  studio-ios.yml - Studio Control iOS - Cloud-Build v1.0.0
+#  studio-ios.yml - Studio Control iOS - Cloud-Build v1.1.0
 #  Autor: T. Pfeiffer
 #  Baut auf einem Cloud-Mac von GitHub eine UNSIGNIERTE .ipa und stellt sie
 #  als Release "Studio Control iOS" zum Download bereit.
@@ -15,7 +15,7 @@ concurrency:
 on:
   push:
     branches: [studio-ios]
-    paths-ignore: ["docs/**", "AGENT_BRIEF.md", "tests/**"]
+    paths-ignore: ["docs/**", "AGENT_BRIEF.md", "REVIEW_BRIEF.md", "tests/**"]
   workflow_dispatch:
 
 permissions:
@@ -57,6 +57,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
             build > build.log 2>&1 && RC=0 || RC=$?
           grep -E "error:|BUILD (SUCCEEDED|FAILED)" build.log | sort -u | head -80 || true
           exit $RC
@@ -99,27 +100,57 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
+      - name: Quellcode holen (Version + Aenderungen)
+        uses: actions/checkout@v4
       - name: IPA holen
         uses: actions/download-artifact@v4
         with:
           pattern: StudioControl_iOS_*
           path: ipa
-      - name: Release aktualisieren
+      - name: Release aktualisieren (IPA, version.json, apps.json)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
+          BUILD: ${{ github.run_number }}
         run: |
           F="$(find ipa -name 'StudioControl_iOS.ipa' | head -1)"
           if [ -z "$F" ]; then echo "keine IPA gebaut"; exit 1; fi
-          VER="$(date +%Y%m%d-%H%M)"
           cp "$F" StudioControl_iOS.ipa
           TAG="studio-ios-latest"
-          NOTES="Studio Control iOS - Stand ${VER} (Commit ${GITHUB_SHA::7}). Installieren mit Sideloadly (Anleitung im Handbuch)."
+          python3 - <<'PY'
+          import json, os, re, time
+          repo = os.environ["REPO"]; build = int(os.environ["BUILD"]); sha = os.environ["GITHUB_SHA"][:7]
+          ver = re.search(r'MARKETING_VERSION:\s*"([^"]+)"', open("project.yml").read()).group(1)
+          notes = open("AENDERUNGEN.txt", encoding="utf-8").read().strip() if os.path.exists("AENDERUNGEN.txt") else ""
+          base = "https://github.com/%s/releases/download/studio-ios-latest/" % repo
+          page = "https://github.com/%s/releases/tag/studio-ios-latest" % repo
+          size = os.path.getsize("StudioControl_iOS.ipa")
+          now = time.gmtime()
+          v = {"version": ver, "build": build, "date": time.strftime("%Y-%m-%d %H:%M UTC", now), "commit": sha,
+               "notes": notes, "ipa": base + "StudioControl_iOS.ipa", "page": page, "source": base + "apps.json"}
+          json.dump(v, open("version.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+          iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", now)
+          icon = "https://raw.githubusercontent.com/%s/studio-ios/Sources/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png" % repo
+          desc = "Studio Control fuer das iPhone: Beamer, Steckdosen, Mics, ClickShare, Touchpanel, Drucker, Switch, Fritz!Box, Speedport, Speedtest."
+          app = {"name": "Studio", "bundleIdentifier": "de.tpfeiffer.studiocontrol", "developerName": "T. Pfeiffer",
+                 "subtitle": "Studio-Steuerung", "localizedDescription": desc, "iconURL": icon, "tintColor": "0A84FF",
+                 "category": "utilities", "screenshotURLs": [],
+                 "versions": [{"version": ver, "buildVersion": str(build), "date": iso, "localizedDescription": notes,
+                               "downloadURL": base + "StudioControl_iOS.ipa", "size": size, "minOSVersion": "16.0"}],
+                 "version": ver, "versionDate": iso, "versionDescription": notes,
+                 "downloadURL": base + "StudioControl_iOS.ipa", "size": size,
+                 "appPermissions": {"entitlements": [], "privacy": {"NSLocalNetworkUsageDescription": "Steuert die Geraete im Studio-Netzwerk."}}}
+          src = {"name": "Studio Control", "identifier": "de.tpfeiffer.studiocontrol.source", "subtitle": "T. Pfeiffer",
+                 "sourceURL": base + "apps.json", "apps": [app], "news": []}
+          json.dump(src, open("apps.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+          open("notes.txt", "w", encoding="utf-8").write("Studio Control iOS v%s (Build %d, Commit %s)\n\n%s\n\nInstallieren mit Sideloadly (Anleitung im Handbuch) oder ueber AltStore/SideStore (Quelle: %sapps.json)." % (ver, build, sha, notes, base))
+          print(open("version.json").read())
+          PY
           if gh release view "$TAG" -R "$REPO" >/dev/null 2>&1; then
-            gh release upload "$TAG" StudioControl_iOS.ipa --clobber -R "$REPO"
-            gh release edit "$TAG" --notes "$NOTES" -R "$REPO"
+            gh release upload "$TAG" StudioControl_iOS.ipa version.json apps.json --clobber -R "$REPO"
+            gh release edit "$TAG" --notes-file notes.txt -R "$REPO"
           else
-            gh release create "$TAG" StudioControl_iOS.ipa --target "$GITHUB_SHA" --title "Studio Control iOS" --notes "$NOTES" -R "$REPO"
+            gh release create "$TAG" StudioControl_iOS.ipa version.json apps.json --target "$GITHUB_SHA" --title "Studio Control iOS" --notes-file notes.txt -R "$REPO"
           fi
 
   screenshots:
@@ -174,7 +205,8 @@ jobs:
           # Aufwaermen: erster Start dauert laenger
           xcrun simctl launch "$DEV" de.tpfeiffer.studiocontrol -demo >/dev/null; sleep 15
           shot 00_start
-          shot 01_info -about 1
+          for k in 0 1 2 3; do shot "01_info_$k" -about 1 -scrollPage "$k"; done
+          shot 02_anpassen -arrange 1
           for p in beamer tapo stegos clickshare touchpanel printer switch fritz speedport speedtest; do
             for k in 0 1 2 3 4 5 6 7; do
               shot "p_${p}_$k" -page "$p" -scrollPage "$k"

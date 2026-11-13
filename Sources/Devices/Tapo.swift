@@ -149,6 +149,13 @@ final class TapoKlapClient {
         ready = false
     }
 
+    /// URLSession freigeben (haelt sonst ihren Delegate fest -> Leck). Danach frische Sitzung.
+    func close() {
+        ready = false
+        http.session.finishTasksAndInvalidate()
+        http = HTTPClient()
+    }
+
     private func baseURL() -> URL? { URL(string: "http://\(ip)/") }
 
     private func post(_ path: String, _ body: Data) async throws -> (Int, Data, HTTPURLResponse) {
@@ -175,6 +182,7 @@ final class TapoKlapClient {
 
     func handshake(user: String, pw: String) async throws {
         ready = false
+        http.session.finishTasksAndInvalidate()   // alte Sitzung schliessen (wie _session.close())
         http = HTTPClient()          // neue Sitzung (wie requests.Session() in Python)
         let ls = Crypto.random(16)
         let ah1 = TapoKlap.authV1(user, pw)
@@ -418,7 +426,21 @@ final class TapoModel: DeviceModel {
 
     override func saveSettings() {
         SecureStore.saveCodable(settings, "tapo")
+        for c in clients.values { c.close() }
         clients.removeAll()
+        // IP/Geraet kann sich geaendert haben: Energiemesser neu erkennen
+        for k in Array(status.keys) { status[k]?.hasEnergy = nil }
+    }
+
+    override var quickActions: [QuickAction] {
+        [
+            QuickAction(id: "tapo.allOn", title: "Alle an", symbol: "power",
+                        run: { [weak self] in self?.setAll(true) }),
+            QuickAction(id: "tapo.allOff", title: "Alle aus", symbol: "poweroff",
+                        run: { [weak self] in self?.setAll(false) }),
+            QuickAction(id: "tapo.refresh", title: "Aktualisieren", symbol: "arrow.clockwise",
+                        run: { [weak self] in Task { await self?.refresh() } })
+        ]
     }
 
     override var isConfigured: Bool {
@@ -431,6 +453,7 @@ final class TapoModel: DeviceModel {
     override var supportsScene: Bool { settings.plugs.contains(where: { $0.inScene }) }
 
     override func disconnect() {
+        for c in clients.values { c.close() }
         clients.removeAll()
     }
 
@@ -496,7 +519,8 @@ final class TapoModel: DeviceModel {
         if st.hasEnergy != false {
             if let e = try? await call(p.ip, TapoKlap.jsonGetEnergy) {
                 if tapoErrorCode(e) != 0 {
-                    st.hasEnergy = false
+                    // einmal erkannter Energiemesser bleibt (voruebergehender Fehlercode)
+                    if st.hasEnergy != true { st.hasEnergy = false }
                     st.powerW = nil
                     st.todayKWh = nil
                     st.monthKWh = nil
@@ -696,6 +720,7 @@ final class TapoModel: DeviceModel {
         guard await isTapo(ip) else { return nil }
         if user.isEmpty || pw.isEmpty { return TapoScanHit(ip: ip, label: "(Typ ungeprüft)") }
         let c = TapoKlapClient(ip: ip, timeout: 3)
+        defer { c.close() }
         do {
             let info = try await c.request(user: user, pw: pw, json: TapoKlap.jsonGetInfo)
             let res = info["result"] as? [String: Any] ?? [:]
@@ -713,6 +738,7 @@ final class TapoModel: DeviceModel {
     private func isTapo(_ ip: String) async -> Bool {
         guard let url = URL(string: "http://\(ip)/app/handshake1") else { return false }
         let h = HTTPClient()
+        defer { h.session.finishTasksAndInvalidate() }
         do {
             let (d, r) = try await h.request("POST", url, headers: ["Content-Type": "application/octet-stream"],
                                              body: Crypto.random(16), timeout: 1.2)

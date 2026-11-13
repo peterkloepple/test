@@ -335,6 +335,8 @@ final class ClickShareModel: DeviceModel {
     @Published var status = ClickShareStatus()
     private let api = ClickShareAPI()
     private var polling = false
+    /// Zaehlt Aktionen (Start + Ende): ein Poll, der eine Aktion ueberlappt, liefert evtl. alte Schalterwerte
+    private var actionGen = 0
 
     init() {
         super.init(id: "clickshare", title: "ClickShare", subtitle: "Barco ClickShare CX (REST API v2)",
@@ -365,8 +367,19 @@ final class ClickShareModel: DeviceModel {
         polling = true
         defer { polling = false }
         await refreshSafely {
-            let st = try await self.api.poll(ip: self.settings.ip, user: self.settings.user.trimmed,
+            let gen = self.actionGen
+            var st = try await self.api.poll(ip: self.settings.ip, user: self.settings.user.trimmed,
                                              password: self.settings.password)
+            if gen != self.actionGen {
+                // waehrend des Polls wurde geschaltet: lokale Schalterwerte behalten
+                let old = self.status
+                st.cec = old.cec
+                st.audio = old.audio
+                st.netInfo = old.netInfo
+                st.wallpaper = old.wallpaper
+                st.cinema = old.cinema
+                st.saver = old.saver
+            }
             self.status = st
             var parts: [String] = []
             if !st.model.isEmpty { parts.append(st.model) }
@@ -430,26 +443,57 @@ final class ClickShareModel: DeviceModel {
 
     func setToggle(_ t: ClickShareToggle, _ on: Bool) {
         setLocal(t, on)
+        actionGen += 1
         perform("\(t.title) \(on ? "ein" : "aus")") {
             do {
                 let data = try JSONSerialization.data(withJSONObject: t.body(on))
                 let r = try await self.call("PATCH", t.path, body: data)
                 if r.code != 200 { throw NetError.http(r.code, t.title) }
+                self.actionGen += 1
             } catch {
-                await pause(0.3)
-                await self.refresh()
+                self.actionGen += 1
+                await self.resync()
                 throw error
             }
         }
     }
 
-    func setSaver(_ value: String) {
-        status.saver = value
-        perform("Screensaver-Timeout \(value)") {
-            let data = try JSONSerialization.data(withJSONObject: ["screensaver": ["timeout": value]])
-            let r = try await self.call("PATCH", "configuration/personalization", body: data)
-            if r.code != 200 { throw NetError.http(r.code, "Screensaver") }
+    /// Nach fehlgeschlagener Aktion den echten Zustand lesen (laufenden Poll abwarten, sonst wird refresh uebersprungen).
+    private func resync() async {
+        await pause(0.3)
+        var n = 0
+        while polling && n < 150 {
+            await pause(0.1)
+            n += 1
         }
+        await refresh()
+    }
+
+    func setSaver(_ value: String) {
+        if value.isEmpty { return }
+        status.saver = value
+        actionGen += 1
+        perform("Screensaver-Timeout \(value)") {
+            do {
+                let data = try JSONSerialization.data(withJSONObject: ["screensaver": ["timeout": value]])
+                let r = try await self.call("PATCH", "configuration/personalization", body: data)
+                if r.code != 200 { throw NetError.http(r.code, "Screensaver") }
+                self.actionGen += 1
+            } catch {
+                self.actionGen += 1
+                await self.resync()
+                throw error
+            }
+        }
+    }
+
+    override var quickActions: [QuickAction] {
+        [
+            QuickAction(id: "clickshare.refresh", title: "Aktualisieren", symbol: "arrow.clockwise",
+                        run: { [weak self] in Task { await self?.refresh() } }),
+            QuickAction(id: "clickshare.standby", title: "Standby", symbol: "moon.zzz.fill",
+                        run: { [weak self] in self?.standby() })
+        ]
     }
 
     // ---- Szene: nur "Studio aus" = Standby (die API hat keinen Wake-Endpunkt) ----
@@ -656,7 +700,7 @@ struct ClickShareView: View {
                 .disabled(model.toggleState(t) == nil || model.busy)
             }
             Picker(selection: Binding(get: { st.saver ?? "" }, set: { v in model.setSaver(v) })) {
-                if st.saver == nil {
+                if (st.saver ?? "").isEmpty {
                     Text("–").tag("")
                 }
                 ForEach(saverOptions, id: \.self) { v in

@@ -455,6 +455,7 @@ final class BeamerModel: DeviceModel {
                 addLog("Angemeldet [\(m)] - \(s.ip.trimmed):\(s.port)")
                 await queryAll()
             }
+            connected = await client.isConnected
             updateSummary()
         }
         connected = await client.isConnected
@@ -592,7 +593,8 @@ final class BeamerModel: DeviceModel {
                 if r == "ERR" { throw NetError.protocolError("Beamer meldet ERR (\(cmd))") }
             }
             await pause(0.4)
-            if let i = try await c.command("ICHK", "????", settings: s) {
+            // Rueckfrage darf fehlschlagen (Umschaltung laeuft) - der Befehl selbst war erfolgreich
+            if let i = try? await c.command("ICHK", "????", settings: s, timeout: 1.5) {
                 self.handle("ICHK", "????", i)
             }
             self.updateSummary()
@@ -659,6 +661,21 @@ final class BeamerModel: DeviceModel {
         f.dateFormat = "HH:mm:ss"
         terminal.insert(f.string(from: Date()) + " " + line, at: 0)
         if terminal.count > 300 { terminal.removeLast(terminal.count - 300) }
+    }
+
+    // ---- Schnellaktionen (Kachel-Kontextmenue) ----
+    // Der Client verbindet sich bei Bedarf selbst (Login inklusive).
+    override var quickActions: [QuickAction] {
+        [
+            QuickAction(id: "beamer.on", title: "Einschalten", symbol: "power.circle.fill",
+                        run: { [weak self] in self?.setPower(true) }),
+            QuickAction(id: "beamer.off", title: "Ausschalten", symbol: "power.circle",
+                        run: { [weak self] in self?.setPower(false) }),
+            QuickAction(id: "beamer.black", title: "Bild schwarz", symbol: "eye.slash",
+                        run: { [weak self] in self?.send("IMBK", "   1", "Black an") }),
+            QuickAction(id: "beamer.show", title: "Bild zeigen", symbol: "eye",
+                        run: { [weak self] in self?.send("IMBK", "   0", "Black aus") }),
+        ]
     }
 
     // ---- Szene ----

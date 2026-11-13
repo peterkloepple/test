@@ -1,5 +1,5 @@
 # ===========================================================================
-#  project.yml - Studio Control iOS v1.0.0  (XcodeGen)
+#  project.yml - Studio Control iOS v1.1.0  (XcodeGen)
 #  Autor: T. Pfeiffer
 #  Wird im GitHub-Workflow zu StudioControl.xcodeproj umgewandelt.
 # ===========================================================================
@@ -18,8 +18,8 @@ targets:
       path: Info.plist
       properties:
         CFBundleDisplayName: Studio
-        CFBundleShortVersionString: "1.0.0"
-        CFBundleVersion: "1"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         LSRequiresIPhoneOS: true
         UILaunchScreen: {}
         UIApplicationSceneManifest:
@@ -41,7 +41,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: de.tpfeiffer.studiocontrol
         PRODUCT_NAME: StudioControl
-        MARKETING_VERSION: "1.0.0"
+        MARKETING_VERSION: "1.1.0"
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "5.0"
         SWIFT_STRICT_CONCURRENCY: minimal
