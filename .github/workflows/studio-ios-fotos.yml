@@ -1,0 +1,79 @@
+# ===========================================================================
+#  studio-ios-fotos.yml - Studio Control iOS - Bildschirmfotos fuer das Handbuch
+#  Autor: T. Pfeiffer
+#  Startet nur, wenn docs/fotos/FOTOS.txt geaendert wird. Jede Zeile dort:
+#     dateiname|Startargumente      (z.B.  01_info_0|-about 1 -scrollPage 0)
+#  Die App laeuft im iPhone-Simulator mit Beispieldaten (-demo); die Bilder
+#  landen im Branch studio-ios-shots (vorhandene Bilder bleiben erhalten).
+# ===========================================================================
+name: Studio-App Fotos
+
+on:
+  push:
+    branches: [studio-ios]
+    paths: ["docs/fotos/FOTOS.txt"]
+
+permissions:
+  contents: write
+
+jobs:
+  fotos:
+    runs-on: macos-15-intel
+    timeout-minutes: 80
+    steps:
+      - name: Quellcode holen
+        uses: actions/checkout@v4
+      - name: Projekt erzeugen
+        run: |
+          brew install xcodegen
+          xcodegen generate
+      - name: Fuer Simulator bauen
+        run: |
+          set -o pipefail
+          xcodebuild -project StudioControl.xcodeproj -target StudioControl -configuration Debug \
+            -sdk iphonesimulator SYMROOT="$PWD/simbuild" CODE_SIGNING_ALLOWED=NO build > sim.log 2>&1 && RC=0 || RC=$?
+          grep -E "error:|BUILD (SUCCEEDED|FAILED)" sim.log | sort -u | head -40 || true
+          exit $RC
+      - name: Simulator starten und Seiten fotografieren
+        run: |
+          DEV="$(xcrun simctl list devices available -j | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)['devices']
+          c=[x for k,v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone') and 'Pro' in x['name'] and 'Max' not in x['name']]
+          c=c or [x for k,v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone')]
+          print(c[-1]['udid'])")"
+          xcrun simctl boot "$DEV"
+          xcrun simctl bootstatus "$DEV" -b
+          xcrun simctl ui "$DEV" appearance dark || true
+          xcrun simctl status_bar "$DEV" override --time "9:41" --batteryState charged --batteryLevel 100 --wifiBars 3 --cellularBars 4 || true
+          APP="$(find simbuild -name 'StudioControl.app' -type d | head -1)"
+          xcrun simctl install "$DEV" "$APP"
+          mkdir -p shots
+          xcrun simctl launch "$DEV" de.tpfeiffer.studiocontrol -demo >/dev/null; sleep 25
+          while IFS='|' read -r name args; do
+            [ -z "$name" ] && continue
+            case "$name" in \#*) continue;; esac
+            xcrun simctl terminate "$DEV" de.tpfeiffer.studiocontrol >/dev/null 2>&1 || true
+            sleep 1
+            # shellcheck disable=SC2086
+            xcrun simctl launch "$DEV" de.tpfeiffer.studiocontrol -demo $args >/dev/null
+            sleep 14
+            xcrun simctl io "$DEV" screenshot "shots/$name.png" >/dev/null 2>&1
+            echo "$name"
+          done < docs/fotos/FOTOS.txt
+          ls -la shots
+          # Absturzberichte der App (falls vorhanden) mitgeben
+          mkdir -p shots/_crash
+          cp ~/Library/Logs/DiagnosticReports/StudioControl* shots/_crash/ 2>/dev/null || true
+          ls shots/_crash | head
+      - name: Fotos in Branch studio-ios-shots ablegen
+        run: |
+          git clone -q --depth 1 -b studio-ios-shots "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" out || { mkdir out; cd out; git init -q -b studio-ios-shots; git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"; cd ..; }
+          rm -rf out/_crash
+          cp -R shots/. out/
+          cd out
+          git config user.name "T. Pfeiffer"
+          git config user.email "noreply@github.com"
+          git add -A
+          git commit -q -m "Fotos ${GITHUB_SHA::7}" || echo "nichts neu"
+          git push -q origin studio-ios-shots

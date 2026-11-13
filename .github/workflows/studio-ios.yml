@@ -15,7 +15,7 @@ concurrency:
 on:
   push:
     branches: [studio-ios]
-    paths-ignore: ["docs/**", "AGENT_BRIEF.md", "REVIEW_BRIEF.md", "tests/**"]
+    paths-ignore: ["docs/**", "AGENT_BRIEF.md", "REVIEW_BRIEF.md", "tests/**", ".github/workflows/studio-ios-fotos.yml"]
   workflow_dispatch:
 
 permissions:
@@ -27,7 +27,7 @@ jobs:
       fail-fast: false
       matrix:
         # Intel-Mac ist meist sofort frei (macos-26 stand oft lange in der Warteschlange)
-        os: [macos-15-intel, macos-15]
+        os: [macos-15-intel]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
     steps:
@@ -153,81 +153,3 @@ jobs:
             gh release create "$TAG" StudioControl_iOS.ipa version.json apps.json --target "$GITHUB_SHA" --title "Studio Control iOS" --notes-file notes.txt -R "$REPO"
           fi
 
-  screenshots:
-    permissions:
-      contents: write
-    # Bildschirmfotos aller Seiten im iPhone-Simulator (Demo-Daten) - fuer das Handbuch
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-15-intel, macos-15]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 70
-    continue-on-error: true
-    steps:
-      - name: Quellcode holen
-        uses: actions/checkout@v4
-      - name: Projekt erzeugen
-        run: |
-          brew install xcodegen
-          xcodegen generate
-      - name: Fuer Simulator bauen
-        run: |
-          set -o pipefail
-          xcodebuild -project StudioControl.xcodeproj -target StudioControl -configuration Debug \
-            -sdk iphonesimulator SYMROOT="$PWD/simbuild" CODE_SIGNING_ALLOWED=NO build > sim.log 2>&1 && RC=0 || RC=$?
-          grep -E "error:|BUILD (SUCCEEDED|FAILED)" sim.log | sort -u | head -40 || true
-          exit $RC
-      - name: Simulator starten und Seiten fotografieren
-        run: |
-          DEV="$(xcrun simctl list devices available -j | python3 -c "
-          import json,sys
-          d=json.load(sys.stdin)['devices']
-          c=[x for k,v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone') and 'Pro' in x['name'] and 'Max' not in x['name']]
-          c=c or [x for k,v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone')]
-          print(c[-1]['udid'])")"
-          echo "Geraet: $DEV"
-          xcrun simctl boot "$DEV"
-          xcrun simctl bootstatus "$DEV" -b
-          xcrun simctl ui "$DEV" appearance dark || true
-          xcrun simctl status_bar "$DEV" override --time "9:41" --batteryState charged --batteryLevel 100 --wifiBars 3 --cellularBars 4 || true
-          APP="$(find simbuild -name 'StudioControl.app' -type d | head -1)"
-          xcrun simctl install "$DEV" "$APP"
-          mkdir -p shots
-          shot() {
-            name="$1"; shift
-            xcrun simctl terminate "$DEV" de.tpfeiffer.studiocontrol >/dev/null 2>&1 || true
-            xcrun simctl launch "$DEV" de.tpfeiffer.studiocontrol -demo "$@" >/dev/null
-            sleep 7
-            xcrun simctl io "$DEV" screenshot "shots/$name.png" >/dev/null 2>&1
-            echo "$name"
-          }
-          # Aufwaermen: erster Start dauert laenger
-          xcrun simctl launch "$DEV" de.tpfeiffer.studiocontrol -demo >/dev/null; sleep 15
-          shot 00_start
-          for k in 0 1 2 3; do shot "01_info_$k" -about 1 -scrollPage "$k"; done
-          shot 02_anpassen -arrange 1
-          for p in beamer tapo stegos clickshare touchpanel printer switch fritz speedport speedtest; do
-            for k in 0 1 2 3 4 5 6 7; do
-              shot "p_${p}_$k" -page "$p" -scrollPage "$k"
-            done
-            for k in 0 1 2 3; do
-              shot "s_${p}_$k" -page "$p" -settings "$p" -scrollPage "$k"
-            done
-          done
-          ls -la shots
-      - name: Fotos hochladen
-        uses: actions/upload-artifact@v4
-        with:
-          name: screenshots
-          path: shots
-          retention-days: 10
-      - name: Fotos in Branch studio-ios-shots ablegen (fuer das Handbuch)
-        run: |
-          cd shots
-          git init -q -b studio-ios-shots
-          git config user.name "T. Pfeiffer"
-          git config user.email "noreply@github.com"
-          git add -A
-          git commit -q -m "Bildschirmfotos ${GITHUB_SHA::7}"
-          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" studio-ios-shots
