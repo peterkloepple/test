@@ -229,8 +229,9 @@ final class FritzTR064Client {
                 }
                 descs.append(p)
             } catch {
+                // Box nicht erreichbar -> sofort abbrechen (kein zweiter Timeout)
+                if error is URLError { throw error }
                 if file == "tr64desc.xml" {
-                    if error is URLError { throw error }
                     throw NetError.protocolError("Fritz!Box: Zugriff für Anwendungen deaktiviert (Heimnetz > Netzwerk > Netzwerkeinstellungen: 'Zugriff für Anwendungen zulassen')")
                 }
             }
@@ -362,6 +363,9 @@ final class FritzTR064Client {
         } catch {
             // Netzwerkfehler weiterreichen (Box nicht erreichbar), SOAP-Fehler -> 0
             if error is URLError { throw error }
+            // falsches Kennwort nicht als "online, 0 Geraete" anzeigen
+            if let ne = error as? NetError, case .protocolError(let t) = ne,
+               t.hasPrefix("Anmeldung abgelehnt") { throw error }
             n = 0
         }
         if n > 0 {
@@ -521,7 +525,13 @@ final class FritzModel: DeviceModel {
         let key = "\(settings.ip.trimmed)|\(settings.user.trimmed)|\(settings.password)"
         if let c = client, clientKey == key, c.loaded { return c }
         let c = try FritzTR064Client(address: settings.ip, user: settings.user, password: settings.password)
-        try await c.load()
+        do {
+            try await c.load()
+        } catch {
+            // verworfener Client: URLSession freigeben (sonst Leck pro Fehlversuch)
+            c.http.session.finishTasksAndInvalidate()
+            throw error
+        }
         client = c
         clientKey = key
         return c
@@ -529,13 +539,23 @@ final class FritzModel: DeviceModel {
 
     override func refresh() async {
         await refreshSafely {
-            let c = try await self.connection()
-            let h = try await c.hosts()
+            let c: FritzTR064Client
+            let h: [FritzHost]
+            do {
+                c = try await self.connection()
+                h = try await c.hosts()
+            } catch {
+                // Seite verlassen / App im Hintergrund: kein "offline" melden
+                if Task.isCancelled { throw CancellationError() }
+                throw error
+            }
             let w = await c.wan()
             var states: [FritzWLANState] = []
             for (svc, _) in FritzConst.wlanServices {
                 states.append(await c.wlan(svc))
             }
+            // abgebrochene Abfrage liefert Teil-Daten -> nicht uebernehmen
+            try Task.checkCancellation()
             self.modelName = c.modelName
             self.firmware = c.firmware
             self.hosts = h
@@ -558,8 +578,24 @@ final class FritzModel: DeviceModel {
         let label = FritzConst.wlanServices[index].1
         if index < wlan.count { wlan[index].enabled = on }
         perform("WLAN \(label) -> \(on ? "AN" : "AUS")") {
-            try await self.doSetWLAN(svc, on: on)
+            do {
+                try await self.doSetWLAN(svc, on: on)
+            } catch {
+                // Schalter zuruecksetzen, sonst zeigt er bis zum naechsten Poll den falschen Zustand
+                if index < self.wlan.count, self.wlan[index].enabled != nil { self.wlan[index].enabled = !on }
+                throw error
+            }
         }
+    }
+
+    // ---- Schnellaktionen (Startseite, ohne Rueckfrage) ----
+    override var quickActions: [QuickAction] {
+        [
+            QuickAction(id: "fritz.guest.on", title: "Gast-WLAN an", symbol: "wifi",
+                        run: { [weak self] in self?.setWLAN(2, on: true) }),
+            QuickAction(id: "fritz.guest.off", title: "Gast-WLAN aus", symbol: "wifi.slash",
+                        run: { [weak self] in self?.setWLAN(2, on: false) })
+        ]
     }
 
     private func doSetWLAN(_ svc: String, on: Bool) async throws {
@@ -708,6 +744,8 @@ struct FritzView: View {
     @ObservedObject var model: FritzModel
     @State private var confirmReconnect = false
     @State private var confirmReboot = false
+    @State private var confirmWLANOff = false
+    @State private var pendingWLAN = 0
 
     var body: some View {
         DevicePage(model: model, settings: { FritzSettingsView(model: model) }) {
@@ -728,7 +766,13 @@ struct FritzView: View {
                     FritzWLANRow(label: FritzConst.wlanServices[i].1,
                                  state: i < model.wlan.count ? model.wlan[i] : FritzWLANState(enabled: nil, ssid: ""),
                                  symbol: i == 2 ? "person.2.wave.2" : "wifi") { on in
-                        model.setWLAN(i, on: on)
+                        if !on && i < 2 {
+                            // Haupt-WLAN aus kann das iPhone aussperren -> Rueckfrage
+                            pendingWLAN = i
+                            confirmWLANOff = true
+                        } else {
+                            model.setWLAN(i, on: on)
+                        }
                     }
                 }
             }
@@ -774,6 +818,12 @@ struct FritzView: View {
             Button("Abbrechen", role: .cancel) {}
         } message: {
             Text("Die Fritz!Box trennt die Internetverbindung und baut sie neu auf. Sie erhält dabei in der Regel eine neue öffentliche IP-Adresse.")
+        }
+        .alert("WLAN wirklich ausschalten?", isPresented: $confirmWLANOff) {
+            Button("Ausschalten", role: .destructive) { model.setWLAN(pendingWLAN, on: false) }
+            Button("Abbrechen", role: .cancel) {}
+        } message: {
+            Text("Ist das iPhone über dieses WLAN verbunden, verliert die App die Verbindung und kann das WLAN nicht wieder einschalten.")
         }
         .alert("Fritz!Box wirklich neu starten?", isPresented: $confirmReboot) {
             Button("Neu starten", role: .destructive) { model.reboot() }
@@ -882,7 +932,7 @@ struct FritzPortMapView: View {
                 .pickerStyle(.segmented)
                 FieldRow(label: "Ext. Port", text: $extPort, placeholder: "z.B. 8080", keyboard: .numberPad)
                 FieldRow(label: "Int. Port", text: $intPort, placeholder: "wie extern", keyboard: .numberPad)
-                FieldRow(label: "Ziel-IP", text: $client, placeholder: "192.168.1.20", keyboard: .decimalPad)
+                FieldRow(label: "Ziel-IP", text: $client, placeholder: "192.168.1.20", keyboard: .numbersAndPunctuation)
                 FieldRow(label: "Beschreibung", text: $desc, placeholder: "StudioControlApp")
                 Toggle("aktiv", isOn: $enabled)
                 if let err = inputError {

@@ -381,15 +381,14 @@ final class SpeedportModel: DeviceModel {
     }
 
     nonisolated static func devType(_ d: [String: Any]) -> String {
-        let t = SpeedportClient.str(d["mdevice_type"] ?? d["type"]).lowercased()
+        let t = first(d, ["type", "connection", "interface"]).lowercased()
         let m = ["lan": "LAN", "wlan": "WLAN 2,4 GHz", "wlan5": "WLAN 5 GHz",
                  "0": "LAN", "1": "WLAN 2,4 GHz", "2": "WLAN 5 GHz"]
-        if let n = Int(t) { return m[String(n % 3)] ?? t }
         return m[t] ?? t
     }
 
     nonisolated static func devActive(_ d: [String: Any]) -> Bool {
-        let v = SpeedportClient.str(d["mdevice_connected"] ?? d["connected"]).trimmed.lowercased()
+        let v = first(d, ["connected", "active", "online", "is_connected"]).trimmed.lowercased()
         return ["1", "true", "online", "connected", "ja", "yes"].contains(v)
     }
 
@@ -410,9 +409,9 @@ final class SpeedportModel: DeviceModel {
             do {
                 try await self.poll()
             } catch {
-                if !(error is CancellationError) {
-                    self.histAdd(status: nil, err: DeviceModel.describe(error))
-                }
+                // Seite verlassen / App im Hintergrund: kein Poll-Fehler, kein "offline"
+                if Task.isCancelled || error is CancellationError { throw CancellationError() }
+                self.histAdd(status: nil, err: DeviceModel.describe(error))
                 throw error
             }
         }
@@ -420,6 +419,8 @@ final class SpeedportModel: DeviceModel {
 
     private func poll() async throws {
         let c = try SpeedportClient(host: settings.ip)
+        // Client lebt nur fuer diese Abfrage: URLSession danach freigeben (sonst Leck pro Poll)
+        defer { c.http.session.finishTasksAndInvalidate() }
         let pw = settings.password
         // 1) Status (ohne Anmeldung)
         var status: [String: Any] = [:]
@@ -429,6 +430,8 @@ final class SpeedportModel: DeviceModel {
         } catch {
             statusErr = error
         }
+        // Geraet nicht erreichbar -> sofort melden statt weitere 20 s Timeouts abzuwarten
+        if let e = statusErr, e is URLError { throw e }
         // 2) Geraeteliste ohne Login (Default-Key)
         var raw: [[String: Any]] = (try? await c.devices(auth: false, sorted: true)) ?? []
         if raw.isEmpty { raw = (try? await c.devices(auth: false, sorted: false)) ?? [] }
@@ -445,6 +448,8 @@ final class SpeedportModel: DeviceModel {
                 addLog("Login: \(DeviceModel.describe(error))", error: true)
             }
         }
+        // abgebrochene Abfrage liefert Teil-Daten -> nicht uebernehmen
+        try Task.checkCancellation()
         // 4) Werte einsammeln (sp.get: erst Status, dann IP-Daten)
         func g(_ k: String) -> String {
             let s = SpeedportClient.str(status[k])
@@ -510,10 +515,21 @@ final class SpeedportModel: DeviceModel {
         }
     }
 
+    // ---- Schnellaktionen (Startseite, ohne Rueckfrage) ----
+    override var quickActions: [QuickAction] {
+        [
+            QuickAction(id: "speedport.guest.on", title: "Gast-WLAN an", symbol: "wifi",
+                        run: { [weak self] in self?.run(.guestOn) }),
+            QuickAction(id: "speedport.guest.off", title: "Gast-WLAN aus", symbol: "wifi.slash",
+                        run: { [weak self] in self?.run(.guestOff) })
+        ]
+    }
+
     private func doRun(_ action: SpeedportAction) async throws {
         let pw = settings.password
         guard !pw.isEmpty else { throw NetError.protocolError("Gerätepasswort fehlt (Einstellungen)") }
         let c = try SpeedportClient(host: settings.ip)
+        defer { c.http.session.finishTasksAndInvalidate() }
         _ = try? await c.status()
         do {
             try await c.login(pw)
@@ -657,6 +673,8 @@ final class SpeedportModel: DeviceModel {
 struct SpeedportView: View {
     @ObservedObject var model: SpeedportModel
     @State private var confirmReboot = false
+    @State private var confirmReconnect = false
+    @State private var confirmWLANOff = false
     @State private var confirmClear = false
     @State private var showHistory = false
 
@@ -678,7 +696,7 @@ struct SpeedportView: View {
                     ActionTile(title: "WLAN an", symbol: "wifi", tint: .green,
                                active: model.wlanOn == true, disabled: model.busy) { model.run(.wifiOn) }
                     ActionTile(title: "WLAN aus", symbol: "wifi.slash", tint: .gray,
-                               active: model.wlanOn == false, disabled: model.busy) { model.run(.wifiOff) }
+                               active: model.wlanOn == false, disabled: model.busy) { confirmWLANOff = true }
                     ActionTile(title: "Gast-WLAN an", symbol: "person.2.wave.2", tint: .green,
                                active: model.guestOn == true, disabled: model.busy) { model.run(.guestOn) }
                     ActionTile(title: "Gast-WLAN aus", symbol: "person.2.slash", tint: .gray,
@@ -697,7 +715,7 @@ struct SpeedportView: View {
                     }
                     ActionTile(title: "Reconnect", symbol: "arrow.triangle.2.circlepath", tint: .orange,
                                disabled: model.busy) {
-                        model.run(.reconnect)
+                        confirmReconnect = true
                     }
                     ActionTile(title: "Neustart", symbol: "restart.circle", tint: .red,
                                disabled: model.busy) {
@@ -750,6 +768,18 @@ struct SpeedportView: View {
             Button("Abbrechen", role: .cancel) {}
         } message: {
             Text("Alle Verbindungen brechen ab.")
+        }
+        .alert("Internetverbindung neu aufbauen?", isPresented: $confirmReconnect) {
+            Button("Reconnect", role: .destructive) { model.run(.reconnect) }
+            Button("Abbrechen", role: .cancel) {}
+        } message: {
+            Text("Der Speedport trennt die Internetverbindung und baut sie neu auf.")
+        }
+        .alert("WLAN wirklich ausschalten?", isPresented: $confirmWLANOff) {
+            Button("Ausschalten", role: .destructive) { model.run(.wifiOff) }
+            Button("Abbrechen", role: .cancel) {}
+        } message: {
+            Text("Ist das iPhone über dieses WLAN verbunden, verliert die App die Verbindung und kann das WLAN nicht wieder einschalten.")
         }
         .alert("Verbindungs-Historie wirklich löschen?", isPresented: $confirmClear) {
             Button("Löschen", role: .destructive) { model.clearHistory() }
