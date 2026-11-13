@@ -138,7 +138,9 @@ final class TouchpanelCIP {
 
     func configure(host: String, port: Int, ipidHex: String) throws {
         guard let p = UInt16(exactly: port), p > 0 else { throw NetError.badAddress("\(host):\(port)") }
-        guard let v = Int(ipidHex.trimmed, radix: 16) else {
+        var hx = ipidHex.trimmed
+        if hx.lowercased().hasPrefix("0x") { hx = String(hx.dropFirst(2)) }   // wie int("0x03", 16)
+        guard let v = Int(hx, radix: 16), v >= 0 else {
             throw NetError.protocolError("Ungültige IP-ID (hex): \(ipidHex)")
         }
         self.host = host.trimmed
@@ -369,8 +371,11 @@ final class TouchpanelCIP {
                 setLink(false)
             }
             c.close()
-            txQueue.removeAll()
-            buttonsPressed.removeAll()
+            // nur die eigene Generation: nach Stop/Start nichts der neuen Sitzung loeschen
+            if g == gen {
+                txQueue.removeAll()
+                buttonsPressed.removeAll()
+            }
             if alive(g) {
                 log("Verbindung verloren - neuer Versuch in 1 s")
                 await pause(1)
@@ -534,6 +539,47 @@ final class TouchpanelModel: DeviceModel {
 
     override var isConfigured: Bool { !settings.host.trimmed.isEmpty }
     override var pollInterval: Double { 5 }
+
+    /// Schnellaktionen der Kachel: CIP wird bei Bedarf erst verbunden.
+    override var quickActions: [QuickAction] {
+        [
+            QuickAction(id: "touchpanel.all.on", title: "Alle Relais ein", symbol: "power.circle.fill",
+                        run: { [weak self] in self?.quickAllRelays(true) }),
+            QuickAction(id: "touchpanel.all.off", title: "Alle Relais aus", symbol: "power.circle",
+                        run: { [weak self] in self?.quickAllRelays(false) }),
+            QuickAction(id: "touchpanel.refresh", title: "Aktualisieren", symbol: "arrow.clockwise",
+                        run: { [weak self] in
+                            guard let me = self else { return }
+                            Task { await me.refresh() }
+                        }),
+        ]
+    }
+
+    private func quickAllRelays(_ on: Bool) {
+        // Vorschau/Demo: nur Lampen setzen, wie auf der Seite (keine Verbindung noetig)
+        if settings.localPreview || DeviceModel.demoMode {
+            allRelays(on)
+            return
+        }
+        perform("Alle Relais \(on ? "EIN" : "AUS")") {
+            if !self.cip.running { self.startCIP() }
+            var n = 0
+            while !self.online && self.cip.running && n < 60 {
+                await pause(0.1)
+                n += 1
+            }
+            if !self.online {
+                if self.cip.running && !self.pageVisible { self.stopCIP() }
+                throw NetError.protocolError("CIP nicht registriert (IP-ID \(self.settings.ipid))")
+            }
+            // Feedback-Joins des Update Request abwarten, dann nur abweichende Relais pulsen
+            await pause(0.4)
+            self.allRelays(on)
+            // Pulse senden lassen; ohne offene Seite die CIP-Sitzung wieder schliessen
+            await pause(0.8)
+            if self.cip.running && !self.pageVisible { self.stopCIP() }
+        }
+    }
 
     override func loadSettings() {
         if let s = SecureStore.loadCodable(TouchpanelSettings.self, "touchpanel") { settings = s }
@@ -1071,6 +1117,13 @@ struct TouchpanelHoldTile: View {
                     }
                 }
         )
+        .onDisappear {
+            // abgebrochene Geste: Taste nicht haengen lassen
+            if held {
+                held = false
+                release()
+            }
+        }
     }
 }
 

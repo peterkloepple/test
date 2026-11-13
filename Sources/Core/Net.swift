@@ -190,6 +190,7 @@ final class TCPConnection {
             let n = queue.sync { buffer.count }
             if n != lastCount { lastCount = n; stableSince = Date() }
             if n > 0 && Date().timeIntervalSince(stableSince) >= settle { break }
+            if Task.isCancelled { break }      // v1.1.0: sonst dreht die Schleife bei Abbruch heiss
             try? await Task.sleep(nanoseconds: 15_000_000)
         }
         return takeAll()

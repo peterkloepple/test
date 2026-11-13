@@ -204,6 +204,7 @@ final class StegosModel: DeviceModel {
     private var connecting = false
     private var editing = Set<Int>()          // 0..3 Kanaele, 4 = Master
     private var lastSent: [Int: Int] = [:]    // wie ch_last_sent / m_last_sent
+    private var epoch = 0                     // zaehlt Trennungen (laufendes Verbinden/Abfragen abbrechen)
 
     init() {
         super.init(id: "stegos", title: "Mics", subtitle: "Beyerdynamic Stegos RS",
@@ -212,6 +213,25 @@ final class StegosModel: DeviceModel {
 
     override var isConfigured: Bool { !settings.ip.trimmed.isEmpty && settings.port > 0 }
     override var pollInterval: Double { 15 }
+
+    /// Schnellaktionen der Kachel: verbinden bei Bedarf selbst (sendLine -> ensureConnected)
+    override var quickActions: [QuickAction] {
+        [
+            QuickAction(id: "stegos.gmute.on", title: "Alle stumm", symbol: "mic.slash.fill",
+                        run: { [weak self] in self?.setGlobalMute(true) }),
+            QuickAction(id: "stegos.gmute.off", title: "Alle offen", symbol: "mic.fill",
+                        run: { [weak self] in self?.setGlobalMute(false) }),
+            QuickAction(id: "stegos.poll", title: "Status abfragen", symbol: "arrow.clockwise",
+                        run: { [weak self] in self?.quickPoll() }),
+        ]
+    }
+
+    private func quickPoll() {
+        perform("Alle abgefragt") {
+            try await self.ensureConnected()
+            try await self.pollAll()
+        }
+    }
 
     override func loadSettings() {
         if let s = SecureStore.loadCodable(StegosSettings.self, "stegos") { settings = s }
@@ -234,6 +254,7 @@ final class StegosModel: DeviceModel {
         if conn != nil { closeConnection(note: nil) }
         connecting = true
         defer { connecting = false }
+        let ep = epoch
         guard let p = UInt16(exactly: settings.port), p > 0 else {
             throw NetError.badAddress("\(settings.ip):\(settings.port)")
         }
@@ -245,6 +266,11 @@ final class StegosModel: DeviceModel {
             mon(.err, "Verbindung fehlgeschlagen: \(DeviceModel.describe(error))")
             throw error
         }
+        if ep != epoch {
+            // waehrend des Verbindens getrennt (Seite verlassen / App im Hintergrund)
+            c.close()
+            throw CancellationError()
+        }
         conn = c
         connected = true
         mon(.sys, "Verbunden mit \(settings.ip.trimmed):\(settings.port)")
@@ -254,6 +280,7 @@ final class StegosModel: DeviceModel {
     }
 
     private func closeConnection(note: String?) {
+        epoch += 1
         readerTask?.cancel()
         readerTask = nil
         conn?.close()
@@ -263,6 +290,8 @@ final class StegosModel: DeviceModel {
     }
 
     override func disconnect() {
+        epoch += 1
+        editing.removeAll()
         if conn != nil { closeConnection(note: "Getrennt") }
     }
 
@@ -331,18 +360,39 @@ final class StegosModel: DeviceModel {
     }
 
     func pollAll() async throws {
+        let ep = epoch
         for k in StegosProto.pollAllKeys {
+            // inzwischen getrennt -> nicht ueber sendLine neu verbinden
+            if ep != epoch { return }
             try await sendLine(k)
         }
     }
 
     // ---- Aktionen ----
+    // Die Bridge meldet Mute/Aktiv evtl. nicht von selbst zurueck: Anzeige nach
+    // erfolgreichem Senden nachfuehren (eine echte Rueckmeldung ueberschreibt sie).
     func setMute(_ ch: Int, _ on: Bool) {
-        cmd(StegosProto.chMute(ch, on ? "1" : "0"), "\(settings.name(ch)): \(on ? "stumm" : "offen")")
+        perform("\(settings.name(ch)): \(on ? "stumm" : "offen")") {
+            try await self.sendLine(StegosProto.chMute(ch, on ? "1" : "0"))
+            if ch >= 1 && ch <= self.channels.count { self.channels[ch - 1].mute = on }
+            self.summary = self.makeSummary()
+        }
     }
 
     func setActive(_ ch: Int, _ on: Bool) {
-        cmd(StegosProto.chActive(ch, on ? "1" : "0"), "\(settings.name(ch)): \(on ? "aktiv" : "inaktiv")")
+        perform("\(settings.name(ch)): \(on ? "aktiv" : "inaktiv")") {
+            try await self.sendLine(StegosProto.chActive(ch, on ? "1" : "0"))
+            if ch >= 1 && ch <= self.channels.count { self.channels[ch - 1].active = on }
+            self.summary = self.makeSummary()
+        }
+    }
+
+    func setGlobalMute(_ on: Bool) {
+        perform(on ? "Global stumm" : "Global offen") {
+            try await self.sendLine(StegosProto.gMute(on ? "1" : "0"))
+            self.gmute = on
+            self.summary = self.makeSummary()
+        }
     }
 
     func sliderEditing(_ idx: Int, _ isEditing: Bool) {
@@ -352,18 +402,16 @@ final class StegosModel: DeviceModel {
         }
         editing.remove(idx)
         if idx == 4 {
+            // immer senden: gesendet wird nur beim Loslassen, und der Regler kann
+            // inzwischen per Rueckmeldung/VU/VD verstellt worden sein
             let iv = Int(masterSlider.rounded())
-            if lastSent[4] != iv {
-                lastSent[4] = iv
-                cmd(StegosProto.mVolSet(iv), "Master-Lautstaerke \(iv)")
-            }
+            lastSent[4] = iv
+            cmd(StegosProto.mVolSet(iv), "Master-Lautstaerke \(iv)")
         } else if idx >= 0 && idx < StegosProto.chCount {
             let iv = Int(sliders[idx].rounded())
-            if lastSent[idx] != iv {
-                lastSent[idx] = iv
-                let ch = idx + 1
-                cmd(StegosProto.chVolSet(ch, iv), "\(settings.name(ch)): Lautstaerke \(iv)")
-            }
+            lastSent[idx] = iv
+            let ch = idx + 1
+            cmd(StegosProto.chVolSet(ch, iv), "\(settings.name(ch)): Lautstaerke \(iv)")
         }
     }
 
@@ -636,10 +684,10 @@ struct StegosView: View {
             ValueRow(label: "Global Mute", value: gmuteText, symbol: "speaker.slash")
             TileGrid(columns: 2) {
                 ActionTile(title: "Global stumm", symbol: "mic.slash.fill", tint: .red, active: model.gmute == true) {
-                    model.cmd(StegosProto.gMute("1"), "Global stumm")
+                    model.setGlobalMute(true)
                 }
                 ActionTile(title: "Global offen", symbol: "mic.fill", tint: .green, active: model.gmute == false) {
-                    model.cmd(StegosProto.gMute("0"), "Global offen")
+                    model.setGlobalMute(false)
                 }
                 ActionTile(title: "Global umschalten", symbol: "arrow.left.arrow.right", tint: .orange) {
                     model.cmd(StegosProto.gMute("T"), "Global Mute umgeschaltet")
