@@ -26,13 +26,14 @@ struct PrinterSettings: Codable {
     var ippBasePath: String = "/ipp/print"
     var ippTLS: Bool = false
     var webScheme: String = "http"
+    var adminUser: String = ""          // leer = "admin" (wie Python admin_user)
     var adminPassword: String = ""
     var timeout: Int = 3
     var inkWarnPct: Int = 15
     var maintTransport: String = "ipp"
 
     enum CodingKeys: String, CodingKey {
-        case ip, community, ippBasePath, ippTLS, webScheme, adminPassword, timeout, inkWarnPct, maintTransport
+        case ip, community, ippBasePath, ippTLS, webScheme, adminUser, adminPassword, timeout, inkWarnPct, maintTransport
     }
 
     init() {}
@@ -44,6 +45,7 @@ struct PrinterSettings: Codable {
         if let v = try c.decodeIfPresent(String.self, forKey: .ippBasePath) { ippBasePath = v }
         if let v = try c.decodeIfPresent(Bool.self, forKey: .ippTLS) { ippTLS = v }
         if let v = try c.decodeIfPresent(String.self, forKey: .webScheme) { webScheme = v }
+        if let v = try c.decodeIfPresent(String.self, forKey: .adminUser) { adminUser = v }
         if let v = try c.decodeIfPresent(String.self, forKey: .adminPassword) { adminPassword = v }
         if let v = try c.decodeIfPresent(Int.self, forKey: .timeout) { timeout = v }
         if let v = try c.decodeIfPresent(Int.self, forKey: .inkWarnPct) { inkWarnPct = v }
@@ -643,8 +645,10 @@ final class PrinterClient {
         tls = settings.ippTLS
         timeout = Double(max(1, settings.timeout))
         let pw = settings.adminPassword
-        // Mit Admin-Passwort immer als "admin" (Digest/Basic nur auf 401)
-        http = HTTPClient(user: pw.isEmpty ? nil : "admin", password: pw.isEmpty ? nil : pw)
+        // Mit Admin-Passwort als Admin-Benutzer (leer = "admin"; Digest/Basic nur auf 401)
+        let au = settings.adminUser.trimmed
+        let user: String = au.isEmpty ? "admin" : au
+        http = HTTPClient(user: pw.isEmpty ? nil : user, password: pw.isEmpty ? nil : pw)
         http.allowInsecure = true
     }
 
@@ -712,7 +716,7 @@ final class PrinterClient {
                                                       body: body, timeout: tmo)
             if resp.statusCode == 401 {
                 return PrinterIPPResult(ok: false, status: nil,
-                                        msg: "HTTP 401 - Anmeldung nötig (Admin-Kennwort in den Einstellungen)")
+                                        msg: "HTTP 401 - Anmeldung nötig (Admin-Benutzer/-Kennwort in den Einstellungen)")
             }
             if resp.statusCode != 200 {
                 return PrinterIPPResult(ok: false, status: nil, msg: "HTTP \(resp.statusCode)")
@@ -1801,11 +1805,12 @@ struct PrinterSettingsView: View {
             Section {
                 FieldRow(label: "IPP-Pfad", text: $s.ippBasePath, placeholder: "/ipp/print")
                 Toggle("IPPS (TLS)", isOn: $s.ippTLS)
+                FieldRow(label: "Admin-Benutzer", text: $s.adminUser, placeholder: "admin (meist leer)")
                 FieldRow(label: "Admin-Kennwort", text: $s.adminPassword, placeholder: "optional", secure: true)
             } header: {
                 Text("IPP")
             } footer: {
-                Text("Das Admin-Kennwort wird für IPP (Benutzer „admin“, Digest/Basic) verwendet. Pfad und TLS werden bei Bedarf automatisch durchprobiert.")
+                Text("Admin-Benutzer und -Kennwort werden für IPP (Digest/Basic) verwendet; Benutzer leer = „admin“. Pfad und TLS werden bei Bedarf automatisch durchprobiert.")
             }
             Section {
                 Picker("Protokoll", selection: $s.webScheme) {
@@ -1835,6 +1840,7 @@ struct PrinterSettingsView: View {
         n.community = n.community.trimmed.isEmpty ? "public" : n.community.trimmed
         n.ippBasePath = n.ippBasePath.trimmed.isEmpty ? "/ipp/print" : n.ippBasePath.trimmed
         n.webScheme = PrinterProto.scheme(n.webScheme)
+        n.adminUser = n.adminUser.trimmed
         n.timeout = max(1, n.timeout)
         n.inkWarnPct = max(0, min(100, n.inkWarnPct))
         if !PrinterProto.transports.contains(n.maintTransport) { n.maintTransport = "ipp" }

@@ -10,11 +10,14 @@
 //  - Heartbeat alle 15 s nach dem letzten Senden, gehaltene Tasten alle 0,5 s
 //  - Digital/Analog/Serial in beide Richtungen, RX-Puffer ueber Segmentgrenzen
 //  - Neuverbindung nach Abbruch
-//  Die Remote-API (TCP-Server fuer Q-SYS) ist nicht portiert: eine iPhone-App
-//  kann im Hintergrund keinen dauerhaften TCP-Server betreiben.
+//  Remote-API fuer Q-SYS (RemoteServer in sc.py, Standard-Port 5050):
+//  ASCII-TCP-Server (NWListener), Zeilen mit \n. Befehle: PING, U, D, P, H, R,
+//  A, S. Meldungen an alle Clients: LINK, FD, FA, FS. Laeuft nur, solange die
+//  App im Vordergrund auf dieser Seite offen ist (oder CIP gestartet ist).
 // ===========================================================================
 import Foundation
 import SwiftUI
+import Network
 
 // ---------------------------------------------------------------------------
 // Konstanten (TP_DEF_* in sc.py)
@@ -24,6 +27,9 @@ enum TouchpanelConst {
     static let defPort = 41794
     static let defIPID = "03"
     static let relayCount = 8
+    static let defAPIPort = 5050          // TP_DEF_API_PORT
+    static let apiMaxClients = 16
+    static let apiMaxLine = 4096
 
     static func hex2(_ v: Int) -> String {
         let h = String(v & 0xFF, radix: 16)
@@ -69,6 +75,9 @@ struct TouchpanelSettings: Codable {
     var relays: [TouchpanelRelay] = TouchpanelSettings.defaultRelays()
     /// Szenen wie in touchpanel_config.json: Name -> Relaiszustaende
     var scenes: [String: [Bool]] = [:]
+    /// Remote-API fuer Q-SYS (api_auto / api_port in sc.py)
+    var apiEnabled: Bool = false
+    var apiPort: Int = TouchpanelConst.defAPIPort
 
     init() {}
 
@@ -77,7 +86,7 @@ struct TouchpanelSettings: Codable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case host, port, ipid, localPreview, debug, relays, scenes
+        case host, port, ipid, localPreview, debug, relays, scenes, apiEnabled, apiPort
     }
 
     init(from decoder: Decoder) throws {
@@ -89,6 +98,8 @@ struct TouchpanelSettings: Codable {
         debug = try c.decodeIfPresent(Bool.self, forKey: .debug) ?? true
         relays = try c.decodeIfPresent([TouchpanelRelay].self, forKey: .relays) ?? TouchpanelSettings.defaultRelays()
         scenes = try c.decodeIfPresent([String: [Bool]].self, forKey: .scenes) ?? [:]
+        apiEnabled = try c.decodeIfPresent(Bool.self, forKey: .apiEnabled) ?? false
+        apiPort = try c.decodeIfPresent(Int.self, forKey: .apiPort) ?? TouchpanelConst.defAPIPort
     }
 }
 
@@ -492,6 +503,298 @@ final class TouchpanelCIP {
 }
 
 // ---------------------------------------------------------------------------
+// Remote-API (wie RemoteServer in sc.py): ASCII-TCP-Server fuer Q-SYS
+// ---------------------------------------------------------------------------
+/// Eigene IPv4 des iPhones (WLAN en0 bevorzugt) ueber getifaddrs.
+private func touchpanelLocalIPv4() -> String? {
+    var addrs: UnsafeMutablePointer<ifaddrs>? = nil
+    guard getifaddrs(&addrs) == 0, let first = addrs else { return nil }
+    defer { freeifaddrs(addrs) }
+    var fallback: String? = nil
+    var ptr: UnsafeMutablePointer<ifaddrs>? = first
+    while let p = ptr {
+        let ifa = p.pointee
+        ptr = ifa.ifa_next
+        guard let sa = ifa.ifa_addr else { continue }
+        if sa.pointee.sa_family != UInt8(AF_INET) { continue }
+        if (Int32(ifa.ifa_flags) & IFF_UP) == 0 { continue }
+        let name = String(cString: ifa.ifa_name)
+        var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+        let rc = getnameinfo(sa, socklen_t(sa.pointee.sa_len), &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST)
+        if rc != 0 { continue }
+        let ip = String(cString: host)
+        if ip.hasPrefix("127.") || ip.hasPrefix("169.254.") { continue }
+        if name == "en0" { return ip }
+        if fallback == nil && name.hasPrefix("en") { fallback = ip }
+    }
+    return fallback
+}
+
+/// Ein verbundener Q-SYS-Client (nur auf dem Main Actor benutzt).
+final class TouchpanelAPIClient {
+    let id: Int
+    let conn: NWConnection
+    let addr: String
+    var buf: [UInt8] = []
+
+    init(id: Int, conn: NWConnection, addr: String) {
+        self.id = id
+        self.conn = conn
+        self.addr = addr
+    }
+}
+
+@MainActor
+final class TouchpanelRemoteServer {
+    /// (Text, raw) wie beim CIP-Log
+    var onLog: ((String, Bool) -> Void)?
+    var onClients: ((Int) -> Void)?
+    /// (lauscht, Fehlertext)
+    var onState: ((Bool, String?) -> Void)?
+    /// (Befehlszeile, Client-ID)
+    var onCommand: ((String, Int) -> Void)?
+
+    private(set) var running = false
+    private(set) var port = TouchpanelConst.defAPIPort
+    private var listener: NWListener?
+    private var clients: [Int: TouchpanelAPIClient] = [:]
+    private var nextID = 0
+    private var gen = 0
+
+    var clientCount: Int { clients.count }
+
+    func start(port wanted: Int) {
+        if running { return }
+        port = wanted
+        guard let p16 = UInt16(exactly: wanted), p16 > 0, let nwPort = NWEndpoint.Port(rawValue: p16) else {
+            bindFailed("ungültiger Port")
+            return
+        }
+        let tcp = NWProtocolTCP.Options()
+        tcp.noDelay = true
+        let params = NWParameters(tls: nil, tcp: tcp)
+        params.allowLocalEndpointReuse = true
+        let l: NWListener
+        do {
+            l = try NWListener(using: params, on: nwPort)
+        } catch {
+            bindFailed(DeviceModel.describe(error))
+            return
+        }
+        gen += 1
+        let g = gen
+        running = true
+        listener = l
+        l.stateUpdateHandler = { [weak self] st in
+            Task { @MainActor [weak self] in
+                self?.listenerState(st, g)
+            }
+        }
+        l.newConnectionHandler = { [weak self] c in
+            Task { @MainActor [weak self] in
+                self?.accept(c, g)
+            }
+        }
+        l.start(queue: .main)
+    }
+
+    func stop() {
+        if !running && listener == nil && clients.isEmpty { return }
+        shutdown()
+        log("API gestoppt")
+        onClients?(0)
+        onState?(false, nil)
+    }
+
+    /// Eine Zeile an alle Clients (LINK / FD / FA / FS), Zeilenende \n.
+    func broadcast(_ line: String) {
+        if !running { return }
+        let data = TouchpanelRemoteServer.encode(line + "\n")
+        let n = clients.count
+        for c in Array(clients.values) {
+            send(c, data)
+        }
+        if n == 0 {
+            log("-> '\(line)' aber KEIN Q-SYS verbunden", raw: true)
+        } else {
+            log("-> '\(line)' an \(n) Client(s)", raw: true)
+        }
+        onClients?(clients.count)
+    }
+
+    /// Antwort nur an einen Client (PONG).
+    func reply(_ id: Int, _ line: String) {
+        guard let c = clients[id] else { return }
+        send(c, TouchpanelRemoteServer.encode(line + "\n"))
+    }
+
+    // ---- intern ----
+    private func shutdown() {
+        running = false
+        gen += 1
+        for c in Array(clients.values) {
+            c.conn.stateUpdateHandler = nil
+            c.conn.cancel()
+        }
+        clients.removeAll()
+        if let l = listener {
+            l.stateUpdateHandler = nil
+            l.newConnectionHandler = nil
+            l.cancel()
+        }
+        listener = nil
+    }
+
+    private func bindFailed(_ why: String) {
+        shutdown()
+        log("BIND-FEHLER auf 0.0.0.0:\(port) -> \(why). Port belegt? Anderer Host? Firewall?")
+        onClients?(0)
+        onState?(false, why)
+    }
+
+    private func listenerState(_ st: NWListener.State, _ g: Int) {
+        guard running, g == gen else { return }
+        switch st {
+        case .ready:
+            log("laeuft auf 0.0.0.0:\(port) - warte auf Q-SYS")
+            onState?(true, nil)
+        case .failed(let e):
+            bindFailed(DeviceModel.describe(e))
+        case .waiting(let e):
+            // kein Netzwerk: Listener bleibt bestehen und meldet sich mit .ready
+            onState?(false, "wartet auf Netzwerk (\(DeviceModel.describe(e)))")
+        default:
+            break
+        }
+    }
+
+    private func accept(_ conn: NWConnection, _ g: Int) {
+        guard running, g == gen, clients.count < TouchpanelConst.apiMaxClients else {
+            conn.cancel()
+            return
+        }
+        nextID += 1
+        let id = nextID
+        let cl = TouchpanelAPIClient(id: id, conn: conn, addr: TouchpanelRemoteServer.endpointText(conn.endpoint))
+        clients[id] = cl
+        log("Q-SYS VERBUNDEN: \(cl.addr)")
+        onClients?(clients.count)
+        conn.stateUpdateHandler = { [weak self] st in
+            var dead = false
+            switch st {
+            case .failed:
+                dead = true
+            case .cancelled:
+                dead = true
+            default:
+                break
+            }
+            if dead {
+                Task { @MainActor [weak self] in
+                    self?.drop(id)
+                }
+            }
+        }
+        conn.start(queue: .main)
+        receive(id, conn, g)
+    }
+
+    /// Immer nur ein Lesevorgang je Client: Reihenfolge der Daten bleibt erhalten.
+    private func receive(_ id: Int, _ conn: NWConnection, _ g: Int) {
+        conn.receive(minimumIncompleteLength: 1, maximumLength: 1024) { [weak self] data, _, complete, error in
+            let failed = error != nil
+            let chunk: Data = data ?? Data()
+            Task { @MainActor [weak self] in
+                self?.received(id, conn, g, chunk, complete, failed)
+            }
+        }
+    }
+
+    private func received(_ id: Int, _ conn: NWConnection, _ g: Int, _ chunk: Data, _ complete: Bool, _ failed: Bool) {
+        guard running, g == gen, let cl = clients[id] else { return }
+        if !chunk.isEmpty {
+            cl.buf.append(contentsOf: chunk)
+            while let idx = cl.buf.firstIndex(of: 0x0A) {
+                let lineBytes = Array(cl.buf[0..<idx])
+                cl.buf.removeSubrange(0...idx)
+                // wie decode("ascii", "replace").strip("\r").strip()
+                let text = TouchpanelRemoteServer.decode(lineBytes).trimmingCharacters(in: .whitespacesAndNewlines)
+                if !text.isEmpty {
+                    onCommand?(text, id)
+                }
+                if !running || clients[id] == nil { return }
+            }
+            // Schutz: endlose Zeile ohne \n verwerfen
+            if cl.buf.count > TouchpanelConst.apiMaxLine { cl.buf = [] }
+        }
+        if complete || failed {
+            drop(id)
+            return
+        }
+        receive(id, conn, g)
+    }
+
+    private func send(_ c: TouchpanelAPIClient, _ data: Data) {
+        let id = c.id
+        c.conn.send(content: data, completion: .contentProcessed { [weak self] err in
+            if err != nil {
+                Task { @MainActor [weak self] in
+                    self?.drop(id)
+                }
+            }
+        })
+    }
+
+    private func drop(_ id: Int) {
+        guard let c = clients.removeValue(forKey: id) else { return }
+        c.conn.stateUpdateHandler = nil
+        c.conn.cancel()
+        log("Q-SYS getrennt: \(c.addr)")
+        onClients?(clients.count)
+    }
+
+    private func log(_ text: String, raw: Bool = false) {
+        onLog?("[API] " + text, raw)
+    }
+
+    private static func endpointText(_ e: NWEndpoint) -> String {
+        if case .hostPort(let host, let port) = e {
+            var h = "\(host)"
+            if let r = h.range(of: "%") { h = String(h[h.startIndex..<r.lowerBound]) }
+            return "\(h):\(port.rawValue)"
+        }
+        return "\(e)"
+    }
+
+    /// wie encode("ascii", "replace"): Nicht-ASCII wird "?"
+    private static func encode(_ text: String) -> Data {
+        var out: [UInt8] = []
+        for u in text.unicodeScalars {
+            if u.isASCII {
+                out.append(UInt8(u.value & 0x7F))
+            } else {
+                out.append(0x3F)
+            }
+        }
+        return Data(out)
+    }
+
+    /// wie decode("ascii", "replace"): Bytes >= 0x80 werden U+FFFD
+    private static func decode(_ bytes: [UInt8]) -> String {
+        let repl: Unicode.Scalar = "\u{FFFD}"
+        var s = ""
+        for b in bytes {
+            if b < 0x80 {
+                s.unicodeScalars.append(Unicode.Scalar(b))
+            } else {
+                s.unicodeScalars.append(repl)
+            }
+        }
+        return s
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Modell
 // ---------------------------------------------------------------------------
 struct TouchpanelFeedback: Identifiable {
@@ -514,10 +817,19 @@ final class TouchpanelModel: DeviceModel {
     /// Wird von der Ansicht gesetzt: Seite sichtbar -> CIP-Verbindung halten
     var pageVisible = false
 
+    // ---- Remote-API (Q-SYS) ----
+    @Published var apiRunning = false
+    @Published var apiError: String?
+    @Published var apiClients = 0
+    @Published var apiLastCommand = ""
+    @Published var apiLocalIP = ""
+
     private let cip: TouchpanelCIP
+    private let api: TouchpanelRemoteServer
 
     init() {
         cip = TouchpanelCIP()
+        api = TouchpanelRemoteServer()
         super.init(id: "touchpanel", title: "Touchpanel", subtitle: "Crestron TSW-770 (CIP)",
                    symbol: "rectangle.grid.2x2.fill", tint: Color(hex: 0x5E5CE6))
         cip.onLog = { [weak self] text, raw in
@@ -534,6 +846,19 @@ final class TouchpanelModel: DeviceModel {
         }
         cip.onSerial = { [weak self] j, v in
             self?.serialInput(j, v)
+        }
+        api.onLog = { [weak self] text, raw in
+            self?.cipLog(text, raw)
+        }
+        api.onClients = { [weak self] n in
+            self?.apiClients = n
+        }
+        api.onState = { [weak self] listening, err in
+            self?.apiRunning = listening
+            self?.apiError = err
+        }
+        api.onCommand = { [weak self] line, client in
+            self?.apiCommand(line, client)
         }
     }
 
@@ -586,6 +911,9 @@ final class TouchpanelModel: DeviceModel {
         SecureStore.saveCodable(settings, "touchpanel")
         // neue Parameter -> CIP neu starten (refresh startet wieder, solange die Seite offen ist)
         if cip.running { stopCIP() }
+        // Remote-API mit neuem Port / Schalter neu aufsetzen
+        stopAPI()
+        updateAPI()
     }
 
     // ---- CIP steuern ----
@@ -601,6 +929,7 @@ final class TouchpanelModel: DeviceModel {
         cip.start()
         running = true
         summary = "Verbinde ... (IP-ID \(settings.ipid))"
+        updateAPI()
     }
 
     func stopCIP() {
@@ -608,6 +937,8 @@ final class TouchpanelModel: DeviceModel {
         running = false
         online = false
         summary = "Getrennt"
+        // ohne offene Seite laeuft die Remote-API nur zusammen mit CIP
+        if !pageVisible { stopAPI() }
     }
 
     func toggleCIP() {
@@ -620,6 +951,101 @@ final class TouchpanelModel: DeviceModel {
 
     override func disconnect() {
         if cip.running { stopCIP() }
+        // App im Hintergrund / Seite verlassen: kein TCP-Server mehr
+        stopAPI()
+    }
+
+    // ---- Remote-API steuern ----
+    var apiPortShown: Int { api.running ? api.port : settings.apiPort }
+
+    var apiStateText: String {
+        if let e = apiError { return "Fehler: \(e)" }
+        if apiRunning {
+            return "lauscht auf \(apiLocalIP.isEmpty ? "kein WLAN" : apiLocalIP):\(apiPortShown)"
+        }
+        return "aus"
+    }
+
+    /// Startet/stoppt den Server passend zu Schalter, Sichtbarkeit und CIP.
+    func updateAPI() {
+        let ip = touchpanelLocalIPv4() ?? ""
+        if ip != apiLocalIP { apiLocalIP = ip }
+        let want = settings.apiEnabled && !DeviceModel.demoMode && (pageVisible || cip.running)
+        if !want {
+            stopAPI()
+            return
+        }
+        // nach einem Fehler nicht im Abfragetakt neu versuchen (erst nach stopAPI/retryAPI)
+        if api.running || apiError != nil { return }
+        api.start(port: settings.apiPort)
+    }
+
+    func stopAPI() {
+        api.stop()
+        if apiRunning { apiRunning = false }
+        if apiError != nil { apiError = nil }
+        if apiClients != 0 { apiClients = 0 }
+    }
+
+    func retryAPI() {
+        stopAPI()
+        updateAPI()
+    }
+
+    /// Befehle von Q-SYS (wie _api_cmd in sc.py) - genau diese, sonst nichts.
+    private func apiCommand(_ line: String, _ client: Int) {
+        cipLog("[API] RX-Befehl <\(line)>", true)
+        apiLastCommand = line
+        let parts = line.split(separator: " ", maxSplits: 2, omittingEmptySubsequences: false).map { String($0) }
+        let n = parts.count
+        let cmd = (n > 0 ? parts[0] : "").uppercased()
+        var paramError = false
+        if cmd == "PING" {
+            api.reply(client, "PONG")
+        } else if cmd == "U" {
+            cip.updateRequest()
+        } else if cmd == "D" && n >= 3 {
+            if let j = Int(parts[1].trimmed), let v = Int(parts[2].trimmed) {
+                cip.setDigital(j, v != 0)
+            } else {
+                paramError = true
+            }
+        } else if cmd == "P" && n >= 2 {
+            if let j = Int(parts[1].trimmed) {
+                cip.pulse(j)
+            } else {
+                paramError = true
+            }
+        } else if cmd == "H" && n >= 2 {
+            if let j = Int(parts[1].trimmed) {
+                cip.press(j)
+            } else {
+                paramError = true
+            }
+        } else if cmd == "R" && n >= 2 {
+            if let j = Int(parts[1].trimmed) {
+                cip.release(j)
+            } else {
+                paramError = true
+            }
+        } else if cmd == "A" && n >= 3 {
+            if let j = Int(parts[1].trimmed), let v = Int(parts[2].trimmed) {
+                cip.setAnalog(j, v)
+            } else {
+                paramError = true
+            }
+        } else if cmd == "S" && n >= 3 {
+            if let j = Int(parts[1].trimmed) {
+                cip.setSerial(j, parts[2])
+            } else {
+                paramError = true
+            }
+        } else {
+            cipLog("[API] unbekannter/unvollstaendiger Befehl <\(line)>", false)
+        }
+        if paramError {
+            cipLog("[API] Parameterfehler <\(line)>", false)
+        }
     }
 
     // ---- Relais / Tasten ----
@@ -734,6 +1160,7 @@ final class TouchpanelModel: DeviceModel {
 
     private func linkChanged(_ st: Bool) {
         online = st
+        api.broadcast("LINK \(st ? 1 : 0)")
         if st {
             state = .online
             lastError = nil
@@ -751,6 +1178,7 @@ final class TouchpanelModel: DeviceModel {
 
     private func digitalIn(_ j: Int, _ v: Bool) {
         feedback["D\(j)"] = TouchpanelFeedback(type: "D", join: j, value: v ? "1" : "0")
+        api.broadcast("FD \(j) \(v ? 1 : 0)")
         for r in settings.relays where r.join == j {
             relayOn[r.id] = v
         }
@@ -759,12 +1187,14 @@ final class TouchpanelModel: DeviceModel {
 
     private func analogInput(_ j: Int, _ v: Int) {
         feedback["A\(j)"] = TouchpanelFeedback(type: "A", join: j, value: String(v))
+        api.broadcast("FA \(j) \(v)")
         analogIn[j] = v
         lastUpdate = Date()
     }
 
     private func serialInput(_ j: Int, _ v: String) {
         feedback["S\(j)"] = TouchpanelFeedback(type: "S", join: j, value: v)
+        api.broadcast("FS \(j) \(v)")
         serialIn[j] = v
         lastUpdate = Date()
     }
@@ -773,6 +1203,7 @@ final class TouchpanelModel: DeviceModel {
     override func refresh() async {
         if DeviceModel.demoMode { await refreshSafely {}; return }
         if pageVisible {
+            updateAPI()
             if !cip.running { startCIP() }
             var n = 0
             while !online && cip.running && n < 40 {
@@ -861,6 +1292,7 @@ struct TouchpanelView: View {
         DevicePage(model: model, settings: { TouchpanelSettingsView(model: model) }) {
             Group {
                 connectionSection
+                apiSection
                 relaySection
                 sceneSection
             }
@@ -904,6 +1336,33 @@ struct TouchpanelView: View {
             }
         } header: {
             Text("CIP-Verbindung")
+        }
+    }
+
+    private var apiSection: some View {
+        Section {
+            Label(model.apiStateText,
+                  systemImage: model.apiError != nil ? "exclamationmark.triangle"
+                    : (model.apiRunning ? "antenna.radiowaves.left.and.right" : "xmark.circle"))
+                .foregroundStyle(model.apiError != nil ? Color.red : (model.apiRunning ? Color.green : Color.secondary))
+            if model.apiRunning {
+                ValueRow(label: "Clients", value: "\(model.apiClients)", symbol: "person.2")
+                ValueRow(label: "Letzter Befehl", value: model.apiLastCommand.isEmpty ? "-" : model.apiLastCommand,
+                         symbol: "text.bubble")
+            }
+            if model.apiError != nil {
+                Button {
+                    model.retryAPI()
+                } label: {
+                    Label("Erneut versuchen", systemImage: "arrow.clockwise")
+                }
+            }
+        } header: {
+            Text("Remote-API")
+        } footer: {
+            Text(model.settings.apiEnabled
+                 ? "Q-SYS verbindet sich per TCP mit dieser Adresse. Läuft nur, solange die App im Vordergrund auf dieser Seite geöffnet ist."
+                 : "Ausgeschaltet. Einschalten in den Einstellungen unter „Remote-API (Q-SYS)“.")
         }
     }
 
@@ -1130,10 +1589,12 @@ struct TouchpanelHoldTile: View {
 struct TouchpanelSettingsView: View {
     @ObservedObject var model: TouchpanelModel
     @State private var s: TouchpanelSettings
+    @State private var localIP: String
 
     init(model: TouchpanelModel) {
         self.model = model
         _s = State(initialValue: model.settings)
+        _localIP = State(initialValue: touchpanelLocalIPv4() ?? "kein WLAN")
     }
 
     var body: some View {
@@ -1153,6 +1614,15 @@ struct TouchpanelSettingsView: View {
             Section("Optionen") {
                 Toggle("Lokale Vorschau (ohne CP3)", isOn: $s.localPreview)
                 Toggle("Debug-Detail (Hex/Heartbeat)", isOn: $s.debug)
+            }
+            Section {
+                Toggle("Remote-API aktiv", isOn: $s.apiEnabled)
+                FieldRow(label: "Port", text: intBinding($s.apiPort), placeholder: String(TouchpanelConst.defAPIPort), keyboard: .numberPad)
+                ValueRow(label: "iPhone-IP", value: localIP, symbol: "wifi")
+            } header: {
+                Text("Remote-API (Q-SYS)")
+            } footer: {
+                Text("Q-SYS steuert das Panel per TCP (Textzeilen) über \(localIP):\(s.apiPort). Funktioniert nur, solange die App im Vordergrund auf der Touchpanel-Seite geöffnet ist – im Hintergrund oder bei gesperrtem iPhone beendet iOS den Server.")
             }
             Section {
                 ForEach($s.relays) { $r in

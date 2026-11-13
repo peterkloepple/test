@@ -10,3 +10,18 @@ p_stegos_1|-page stegos -scrollPage 1
 p_stegos_2|-page stegos -scrollPage 2
 p_stegos_3|-page stegos -scrollPage 3
 p_stegos_4|-page stegos -scrollPage 4
+# v1.1.1
+p_touchpanel_0|-page touchpanel -scrollPage 0
+p_touchpanel_1|-page touchpanel -scrollPage 1
+p_touchpanel_2|-page touchpanel -scrollPage 2
+p_touchpanel_3|-page touchpanel -scrollPage 3
+p_touchpanel_4|-page touchpanel -scrollPage 4
+s_touchpanel_0|-page touchpanel -settings touchpanel -scrollPage 0
+s_touchpanel_1|-page touchpanel -settings touchpanel -scrollPage 1
+s_touchpanel_2|-page touchpanel -settings touchpanel -scrollPage 2
+s_printer_0|-page printer -settings printer -scrollPage 0
+s_printer_1|-page printer -settings printer -scrollPage 1
+p_speedtest_0|-page speedtest -scrollPage 0
+p_speedtest_1|-page speedtest -scrollPage 1
+p_speedtest_2|-page speedtest -scrollPage 2
+p_speedtest_3|-page speedtest -scrollPage 3

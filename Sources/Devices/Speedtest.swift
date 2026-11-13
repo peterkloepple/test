@@ -27,11 +27,13 @@ struct SpeedtestSettings: Codable {
     var base: String = "https://speed.cloudflare.com"
     var streams: Int = 8
     var duration: Int = 15
+    var autoRepeat: Bool = false
+    var autoIntervalMin: Int = 30
 
     init() {}
 
     enum CodingKeys: String, CodingKey {
-        case base, streams, duration
+        case base, streams, duration, autoRepeat, autoIntervalMin
     }
 
     init(from decoder: Decoder) throws {
@@ -39,6 +41,8 @@ struct SpeedtestSettings: Codable {
         base = try c.decodeIfPresent(String.self, forKey: .base) ?? "https://speed.cloudflare.com"
         streams = try c.decodeIfPresent(Int.self, forKey: .streams) ?? 8
         duration = try c.decodeIfPresent(Int.self, forKey: .duration) ?? 15
+        autoRepeat = try c.decodeIfPresent(Bool.self, forKey: .autoRepeat) ?? false
+        autoIntervalMin = try c.decodeIfPresent(Int.self, forKey: .autoIntervalMin) ?? 30
     }
 }
 
@@ -715,11 +719,23 @@ final class SpeedtestModel: DeviceModel {
     @Published var history: [SpeedtestResult] = []
     @Published var csvURL: URL?
 
+    /// Naechste automatische Messung (nil = Wiederholung nicht scharf)
+    @Published var nextDue: Date?
+
     private var engine: SpeedtestEngine?
+    private var autoTask: Task<Void, Never>?
+    private var autoSuspended = false      // App im Hintergrund
 
     init() {
         super.init(id: "speedtest", title: "Speedtest", subtitle: "Internet-Geschwindigkeit",
                    symbol: "speedometer", tint: Color(hex: 0x32ADE6))
+        // App wieder im Vordergrund (auch von der Startseite aus) -> Wiederholung neu scharf schalten
+        _ = NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification,
+                                                   object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in
+                self?.armAuto(reset: false)
+            }
+        }
     }
 
     override var pollInterval: Double { 0 }
@@ -737,14 +753,103 @@ final class SpeedtestModel: DeviceModel {
     }
 
     override func refresh() async {
+        // Seite/App wieder sichtbar -> Wiederholung (wieder) scharf schalten
+        armAuto(reset: false)
         await refreshSafely {
             updateSummary()
         }
     }
 
     override func disconnect() {
-        // App geht in den Hintergrund -> laufende Messung waere ohnehin verfaelscht
-        if running { cancel() }
+        // App geht in den Hintergrund: Wiederholung ruht, Bildschirmsperre wieder erlauben
+        autoSuspended = true
+        autoTask?.cancel()
+        autoTask = nil
+        if running {
+            // laufende Messung waere ohnehin verfaelscht; bei Wiederholung nach Rueckkehr sofort neu messen
+            if settings.autoRepeat { nextDue = Date() }
+            engine?.cancel()
+            phaseText = "Abgebrochen"
+        }
+        UIApplication.shared.isIdleTimerDisabled = false
+    }
+
+    // ---- automatische Wiederholung (wie _schedule_auto/_auto_tick in sc.py) ----
+    var autoMinutes: Int { max(5, min(240, settings.autoIntervalMin)) }
+
+    /// Bildschirm wach halten: waehrend einer Messung und solange die Wiederholung scharf ist
+    private func applyIdleTimer() {
+        UIApplication.shared.isIdleTimerDisabled = running || autoTask != nil
+    }
+
+    func setAutoRepeat(_ on: Bool) {
+        settings.autoRepeat = on
+        saveSettings()
+        armAuto(reset: true)
+    }
+
+    func setAutoInterval(_ minutes: Int) {
+        settings.autoIntervalMin = max(5, min(240, minutes))
+        saveSettings()
+        armAuto(reset: true)
+    }
+
+    /// Wartet bis zur naechsten Faelligkeit und startet dann eine Messung.
+    /// reset = true: Intervall ab jetzt neu; false: bestehende Faelligkeit behalten
+    /// (im Hintergrund verstrichen -> sofort messen).
+    private func armAuto(reset: Bool) {
+        autoTask?.cancel()
+        autoTask = nil
+        if DeviceModel.demoMode { return }
+        guard settings.autoRepeat else {
+            nextDue = nil
+            applyIdleTimer()
+            return
+        }
+        autoSuspended = false
+        if reset || nextDue == nil {
+            nextDue = Date().addingTimeInterval(Double(autoMinutes) * 60.0)
+        }
+        autoTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let me = self else { return }
+                guard let due = me.nextDue else { return }
+                let wait = due.timeIntervalSinceNow
+                if wait > 0 {
+                    await pause(min(wait, 20.0))
+                    continue
+                }
+                if me.running {
+                    // Messung laeuft noch (finish() setzt das Intervall neu)
+                    await pause(2.0)
+                    continue
+                }
+                me.addLog("Automatische Messung ...")
+                me.start()
+                return
+            }
+        }
+        applyIdleTimer()
+    }
+
+    /// "HH:mm" der naechsten automatischen Messung, nil = nicht scharf
+    var nextDueText: String? {
+        guard settings.autoRepeat, let d = nextDue else { return nil }
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm"
+        return f.string(from: d)
+    }
+
+    /// Nach einer Messung (auch nach einer fehlgeschlagenen) das Intervall neu starten
+    private func rescheduleAuto() {
+        if settings.autoRepeat && !DeviceModel.demoMode {
+            if autoSuspended {
+                nextDue = Date().addingTimeInterval(Double(autoMinutes) * 60.0)
+            } else {
+                armAuto(reset: true)
+            }
+        }
+        applyIdleTimer()
     }
 
     // ---- Schnellaktionen (Kachel-Kontextmenue) ----
@@ -772,7 +877,7 @@ final class SpeedtestModel: DeviceModel {
         guard !running else { return }
         running = true
         // Bildschirmsperre waehrend der Messung verhindern (sonst Abbruch durch Hintergrund)
-        UIApplication.shared.isIdleTimerDisabled = true
+        applyIdleTimer()
         downSamples = []
         upSamples = []
         liveDown = nil
@@ -809,6 +914,11 @@ final class SpeedtestModel: DeviceModel {
     }
 
     func cancel() {
+        // Abbruch von Hand beendet auch die automatische Wiederholung
+        if running && settings.autoRepeat {
+            setAutoRepeat(false)
+            addLog("Automatische Wiederholung beendet (Abbruch).")
+        }
         engine?.cancel()
         phaseText = "Abgebrochen"
     }
@@ -826,7 +936,6 @@ final class SpeedtestModel: DeviceModel {
 
     private func finish(_ r: SpeedtestResult?, _ err: Error?) {
         running = false
-        UIApplication.shared.isIdleTimerDisabled = false
         engine = nil
         if let e = err {
             let msg = DeviceModel.describe(e)
@@ -834,12 +943,14 @@ final class SpeedtestModel: DeviceModel {
             lastError = msg
             addLog("Messung fehlgeschlagen: \(msg)", error: true)
             Haptics.error()
+            rescheduleAuto()        // Dauermessung laeuft nach Netzfehler weiter
             updateSummary()
             return
         }
         guard let res = r else {
             phaseText = "Abgebrochen"
             addLog("Messung abgebrochen.")
+            applyIdleTimer()
             updateSummary()
             return
         }
@@ -852,6 +963,7 @@ final class SpeedtestModel: DeviceModel {
         phaseText = "Fertig \(f.string(from: Date()))"
         addLog("Ergebnis: Down \(SpeedtestFmt.rate(res.down)), Up \(SpeedtestFmt.rate(res.up)), Ping \(SpeedtestFmt.ms(res.ping)) ms, Jitter \(SpeedtestFmt.ms(res.jitter)) ms")
         Haptics.success()
+        rescheduleAuto()
         updateSummary()
     }
 
@@ -1201,10 +1313,30 @@ struct SpeedtestView: View {
                 .tint(model.tint)
                 .controlSize(.large)
             }
+            autoRows
         } header: {
             Text("Messung")
         } footer: {
-            Text("Cloudflare-Speedtest mit \(model.settings.streams) parallelen Verbindungen, je Richtung \(model.settings.duration) s nach 2 s Anlaufphase. Für genaue Werte andere Downloads/Streams pausieren und mehrmals messen. Im WLAN begrenzt meist die Funkstrecke.")
+            Text("Cloudflare-Speedtest mit \(model.settings.streams) parallelen Verbindungen, je Richtung \(model.settings.duration) s nach 2 s Anlaufphase. Für genaue Werte andere Downloads/Streams pausieren und mehrmals messen. Im WLAN begrenzt meist die Funkstrecke.\n\nDie automatische Wiederholung läuft nur, solange die App geöffnet im Vordergrund ist. Der Bildschirm bleibt dabei eingeschaltet. Ein Abbruch von Hand beendet die Wiederholung.")
+        }
+    }
+
+    /// Automatisch wiederholen alle n Minuten
+    private var autoRows: some View {
+        Group {
+            Toggle("Automatisch wiederholen", isOn: Binding(
+                get: { model.settings.autoRepeat },
+                set: { model.setAutoRepeat($0) }))
+            if model.settings.autoRepeat {
+                Stepper("Alle \(model.autoMinutes) Minuten", value: Binding(
+                    get: { model.autoMinutes },
+                    set: { model.setAutoInterval($0) }), in: 5...240, step: 5)
+                if !model.running, let t = model.nextDueText {
+                    Label("Nächste Messung \(t)", systemImage: "clock")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                }
+            }
         }
     }
 
@@ -1290,7 +1422,11 @@ struct SpeedtestSettingsView: View {
 
     var body: some View {
         SettingsSheet(title: "Speedtest", onSave: {
-            model.settings = s
+            // Wiederholung wird auf der Seite selbst geschaltet -> hier nicht ueberschreiben
+            var n = s
+            n.autoRepeat = model.settings.autoRepeat
+            n.autoIntervalMin = model.settings.autoIntervalMin
+            model.settings = n
             model.saveSettings()
         }) {
             Section {

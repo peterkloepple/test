@@ -1,1 +1,1 @@
-Version 1.1.0: Update-Prüfung in der App, Anzeige und Erinnerung zum Ablauf der Signatur, Schnellaktionen (Kachel lange drücken), Startseite anpassen (Reihenfolge, ausblenden), Einstellungen sichern/einspielen, Fehlerprüfung aller Geräte.
+Version 1.1.1: Drucker mit Feld Admin-Benutzer, Speedtest mit automatischer Wiederholung (solange die App offen ist), Touchpanel mit Remote-API für Q-SYS (Port 5050, solange die App offen ist).
