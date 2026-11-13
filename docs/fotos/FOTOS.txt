@@ -1,0 +1,12 @@
+# dateiname|Startargumente  (Stand v1.1.0)
+00_start|
+01_info_0|-about 1 -scrollPage 0
+01_info_1|-about 1 -scrollPage 1
+01_info_2|-about 1 -scrollPage 2
+01_info_3|-about 1 -scrollPage 3
+02_anpassen|-arrange 1
+p_stegos_0|-page stegos -scrollPage 0
+p_stegos_1|-page stegos -scrollPage 1
+p_stegos_2|-page stegos -scrollPage 2
+p_stegos_3|-page stegos -scrollPage 3
+p_stegos_4|-page stegos -scrollPage 4
