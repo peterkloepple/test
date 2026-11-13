@@ -543,10 +543,7 @@ final class TouchpanelModel: DeviceModel {
     /// Schnellaktionen der Kachel: CIP wird bei Bedarf erst verbunden.
     override var quickActions: [QuickAction] {
         [
-            QuickAction(id: "touchpanel.all.on", title: "Alle Relais ein", symbol: "power.circle.fill",
-                        run: { [weak self] in self?.quickAllRelays(true) }),
-            QuickAction(id: "touchpanel.all.off", title: "Alle Relais aus", symbol: "power.circle",
-                        run: { [weak self] in self?.quickAllRelays(false) }),
+            // Bewusst KEINE Relais-Schnellaktionen: Relais (Lift, Leinwand ...) nur auf der Seite schalten
             QuickAction(id: "touchpanel.refresh", title: "Aktualisieren", symbol: "arrow.clockwise",
                         run: { [weak self] in
                             guard let me = self else { return }

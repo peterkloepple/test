@@ -423,6 +423,8 @@ struct SwitchSNMPClient {
                 data[ifidx]?.ip = cur.isEmpty ? ipaddr : cur + " / " + ipaddr
             }
         }
+        // Abbruch (Seite verlassen) bricht die Walks ab -> unvollstaendige Daten nicht uebernehmen
+        try Task.checkCancellation()
         return SwitchPollResult(ports: data, bpOfIf: bpOfIf, system: sys)
     }
 
@@ -535,6 +537,17 @@ final class SwitchModel: DeviceModel {
         SecureStore.saveCodable(settings, "switch")
         ports = [:]
         counters = [:]
+        bpOfIf = [:]
+    }
+
+    override var quickActions: [QuickAction] {
+        [
+            QuickAction(id: "switch.refresh", title: "Aktualisieren", symbol: "arrow.clockwise",
+                        run: { [weak self] in Task { await self?.refresh() } }),
+            QuickAction(id: "switch.lldp", title: "LLDP-Nachbarn lesen",
+                        symbol: "point.3.connected.trianglepath.dotted",
+                        run: { [weak self] in self?.loadLLDP() })
+        ]
     }
 
     var portCount: Int {
@@ -587,6 +600,12 @@ final class SwitchModel: DeviceModel {
 
     private func refreshAfterWrite() async {
         await pause(1)       // Python: after(1000, do_poll)
+        // Laeuft gerade ein Poll (evtl. vor dem SET gelesen), wuerde refresh() sofort zurueckkehren
+        var n = 0
+        while polling && n < 100 {
+            await pause(0.2)
+            n += 1
+        }
         await refresh()
     }
 

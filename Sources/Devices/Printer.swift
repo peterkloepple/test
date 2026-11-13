@@ -812,7 +812,8 @@ final class PrinterClient {
                 switch v {
                 case .noSuch, .null: continue
                 default:
-                    if v.description.trimmed.isEmpty { continue }
+                    // hrPrinterError ist ein Bitfeld: 0x20 (wenig Tinte) / 0x0A sehen wie Leerraum aus
+                    if v.description.trimmed.isEmpty && n != "hrPrinterError" { continue }
                     out[n] = v
                 }
             }
@@ -1030,6 +1031,7 @@ final class PrinterModel: DeviceModel {
 
     private var client: PrinterClient?
     private var watchToken = 0
+    private var maintRunning = false
     private var lastClean = Date.distantPast
     private var cleanCount = 0
     private var lastInkWarn: [String]? = nil
@@ -1043,6 +1045,18 @@ final class PrinterModel: DeviceModel {
 
     override var isConfigured: Bool { !settings.ip.trimmed.isEmpty }
     override var pollInterval: Double { 10 }
+
+    // Nur harmlose Aktionen (keine Wartung, kein Abbrechen von Auftraegen)
+    override var quickActions: [QuickAction] {
+        [
+            QuickAction(id: "printer.status", title: "Status lesen", symbol: "arrow.clockwise",
+                        run: { [weak self] in self?.readStatus() }),
+            QuickAction(id: "printer.jobs", title: "Aufträge laden", symbol: "list.bullet",
+                        run: { [weak self] in self?.loadJobs() }),
+            QuickAction(id: "printer.web", title: "Web Config öffnen", symbol: "safari",
+                        run: { [weak self] in self?.openWebConfig() })
+        ]
+    }
 
     override func loadSettings() {
         if let s = SecureStore.loadCodable(PrinterSettings.self, "printer") { settings = s }
@@ -1080,6 +1094,8 @@ final class PrinterModel: DeviceModel {
             let ipp = await q
             let snmp = await s
             let stat = await st
+            // Seite verlassen -> abgebrochene Teilergebnisse nicht anzeigen/protokollieren
+            try Task.checkCancellation()
 
             var inf = PrinterInfo()
             var raw: [(String, Int?, String)] = []      // Name, Prozent, Farbschluessel
@@ -1250,6 +1266,12 @@ final class PrinterModel: DeviceModel {
     }
 
     func runMaint(_ k: PrinterMaint) {
+        // Nie zwei Wartungsbefehle gleichzeitig (busy wird auch von anderen Aktionen zurueckgesetzt)
+        if maintRunning {
+            addLog("\(k.label): vorheriger Wartungsbefehl läuft noch - nicht gesendet", error: true)
+            return
+        }
+        maintRunning = true
         if k.isCleaning {
             if Date().timeIntervalSince(lastClean) > 600 { cleanCount = 0 }
             cleanCount += 1
@@ -1264,6 +1286,7 @@ final class PrinterModel: DeviceModel {
             self.busy = true
             let r = await c.maintSend(data, transport: tr)
             self.busy = false
+            self.maintRunning = false
             if k == .feed {
                 self.addLog((r.0 ? "OK  Leerblatt - " : "FEHLER  ") + r.1, error: !r.0)
                 self.maintStatus = (r.0 ? "Leerblatt gesendet: " : "FEHLER: ") + r.1
