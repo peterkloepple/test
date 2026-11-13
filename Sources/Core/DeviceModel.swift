@@ -120,6 +120,9 @@ class DeviceModel: ObservableObject, Identifiable {
         } catch is CancellationError {
             return
         } catch {
+            // v1.1.0: abgebrochene HTTP-Abfrage (Seite verlassen) ist kein Geraetefehler
+            if (error as NSError).domain == NSURLErrorDomain && (error as NSError).code == NSURLErrorCancelled { return }
+            if Task.isCancelled { return }
             state = .offline
             let msg = DeviceModel.describe(error)
             if lastError != msg { addLog(msg, error: true) }

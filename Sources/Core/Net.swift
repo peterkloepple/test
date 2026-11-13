@@ -83,8 +83,12 @@ final class TCPConnection {
                     self?.closedFlag = true
                     once.run { cont.resume(throwing: e) }
                 case .waiting(let e):
-                    // z.B. Verbindung abgelehnt / Netz nicht erreichbar
-                    once.run { c.cancel(); cont.resume(throwing: e) }
+                    // v1.1.0: nur bei 'Verbindung abgelehnt' sofort aufgeben. Sonst weiter warten
+                    // (z.B. waehrend iOS nach dem Zugriff auf das lokale Netzwerk fragt) - der
+                    // Timeout unten beendet den Versuch.
+                    if case .posix(let code) = e, code == .ECONNREFUSED {
+                        once.run { c.cancel(); cont.resume(throwing: e) }
+                    }
                 case .cancelled:
                     self?.closedFlag = true
                     once.run { cont.resume(throwing: NetError.closed) }
@@ -129,8 +133,8 @@ final class TCPConnection {
     /// Alles, was im Puffer liegt, entnehmen.
     func takeAll() -> Data {
         queue.sync {
-            let d = buffer
-            buffer.removeAll()
+            let d = Data(buffer)
+            buffer = Data()
             return d
         }
     }
@@ -168,9 +172,9 @@ final class TCPConnection {
         while true {
             let res: (Data?, Bool) = queue.sync {
                 if buffer.count >= n {
-                    let d = buffer.prefix(n)
-                    buffer.removeFirst(n)
-                    return (Data(d), false)
+                    let d = Data(buffer.prefix(n))
+                    buffer = Data(buffer.dropFirst(n))     // v1.1.0: Index wieder ab 0 (sonst Absturz bei d[0])
+                    return (d, false)
                 }
                 return (nil, closedFlag)
             }

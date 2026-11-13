@@ -576,7 +576,7 @@ final class FritzModel: DeviceModel {
         guard index >= 0 && index < FritzConst.wlanServices.count else { return }
         let svc = FritzConst.wlanServices[index].0
         let label = FritzConst.wlanServices[index].1
-        if index < wlan.count { wlan[index].enabled = on }
+        if index < wlan.count, wlan[index].enabled != nil { wlan[index].enabled = on }
         perform("WLAN \(label) -> \(on ? "AN" : "AUS")") {
             do {
                 try await self.doSetWLAN(svc, on: on)
