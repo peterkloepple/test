@@ -68,12 +68,26 @@ jobs:
           ls shots/_crash | head
       - name: Fotos in Branch studio-ios-shots ablegen
         run: |
-          git clone -q --depth 1 -b studio-ios-shots "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" out || { mkdir out; cd out; git init -q -b studio-ios-shots; git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"; cd ..; }
-          rm -rf out/_crash
-          cp -R shots/. out/
-          cd out
-          git config user.name "T. Pfeiffer"
-          git config user.email "noreply@github.com"
-          git add -A
-          git commit -q -m "Fotos ${GITHUB_SHA::7}" || echo "nichts neu"
-          git push -q origin studio-ios-shots
+          URL="https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          OK=0
+          for TRY in 1 2 3 4; do
+            rm -rf out
+            if git clone -q --depth 1 -b studio-ios-shots "$URL" out; then
+              :
+            elif git ls-remote --exit-code --heads "$URL" studio-ios-shots >/dev/null 2>&1; then
+              echo "Klonen fehlgeschlagen (Versuch $TRY)"; sleep 15; continue
+            else
+              mkdir out; (cd out; git init -q -b studio-ios-shots; git remote add origin "$URL")
+            fi
+            rm -rf out/_crash
+            cp -R shots/. out/
+            cd out
+            git config user.name "T. Pfeiffer"
+            git config user.email "noreply@github.com"
+            git add -A
+            git commit -q -m "Fotos ${GITHUB_SHA::7}" || echo "nichts neu"
+            if git push -q origin studio-ios-shots; then OK=1; cd ..; break; fi
+            cd ..
+            echo "Push fehlgeschlagen (Versuch $TRY)"; sleep 15
+          done
+          [ "$OK" = "1" ]

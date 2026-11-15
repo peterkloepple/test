@@ -1,4 +1,4 @@
-# dateiname|Startargumente  (Stand v1.2.0 - nur Steckdosen; aeltere Bilder bleiben im Branch studio-ios-shots)
+# dateiname|Startargumente  (Stand v1.2.0 - nur Steckdosen, 2. Lauf; aeltere Bilder bleiben im Branch studio-ios-shots)
 p_tapo_0|-page tapo -scrollPage 0
 p_tapo_1|-page tapo -scrollPage 1
 p_tapo_2|-page tapo -scrollPage 2
