@@ -278,6 +278,8 @@ final class HTTPClient: NSObject, URLSessionTaskDelegate, URLSessionDataDelegate
     var allowInsecure = true
     /// Weiterleitungen folgen
     var followRedirects = true
+    /// v1.2.0: nie ueber einen System-Proxy gehen (Geraete im eigenen Netz); vor der ersten Anfrage setzen
+    var noProxy = false
     private(set) var authFailures = 0
 
     lazy var session: URLSession = {
@@ -287,6 +289,7 @@ final class HTTPClient: NSObject, URLSessionTaskDelegate, URLSessionDataDelegate
         cfg.requestCachePolicy = .reloadIgnoringLocalCacheData
         cfg.httpShouldSetCookies = true
         cfg.httpCookieAcceptPolicy = .always
+        if noProxy { cfg.connectionProxyDictionary = [:] }
         return URLSession(configuration: cfg, delegate: self, delegateQueue: nil)
     }()
 
