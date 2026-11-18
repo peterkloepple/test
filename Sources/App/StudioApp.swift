@@ -446,6 +446,7 @@ struct AboutView: View {
                     .padding(.vertical, 6)
                 }
                 updateSection
+                ManualSection()
                 signatureSection
                 backupSection
                 Section("Hinweise") {
