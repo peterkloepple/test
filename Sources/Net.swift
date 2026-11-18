@@ -1,5 +1,5 @@
 // ===========================================================================
-//  Net.swift - PA AV Toolbox iOS v1.0.0
+//  Net.swift - PA AV Toolbox iOS v1.0.1
 //  Autor: T. Pfeiffer
 //  Low-Level-Netzwerk: TCP-Probe, TCP-Austausch, Reverse-DNS, NetBIOS,
 //  eigene IP, Adressbereiche, ICMP-Ping. Alles blockierend -> nur aus

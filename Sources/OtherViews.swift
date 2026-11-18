@@ -1,5 +1,5 @@
 // ===========================================================================
-//  OtherViews.swift - PA AV Toolbox iOS v1.0.0
+//  OtherViews.swift - PA AV Toolbox iOS v1.0.1
 //  Autor: T. Pfeiffer
 //  Discovery, Terminal, Ping, Info
 // ===========================================================================
@@ -336,6 +336,13 @@ struct InfoView: View {
                         Text("Autor: \(AppInfo.author)").font(.footnote)
                     }
                     .padding(.vertical, 4)
+                }
+                Section {
+                    NavigationLink {
+                        HandbookView()
+                    } label: {
+                        Label("Handbuch oeffnen", systemImage: "book")
+                    }
                 }
                 Section("Dieses Geraet") {
                     HStack { Text("Eigene IP"); Spacer(); Text(ownIP).font(.system(.body, design: .monospaced)) }

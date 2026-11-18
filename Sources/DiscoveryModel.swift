@@ -1,5 +1,5 @@
 // ===========================================================================
-//  DiscoveryModel.swift - PA AV Toolbox iOS v1.0.0
+//  DiscoveryModel.swift - PA AV Toolbox iOS v1.0.1
 //  Autor: T. Pfeiffer
 //  AV-Discovery (aus Toolbox 1.3.0): Phase 1 Kennports, Phase 2 Modell-/
 //  Markenabfrage (QRC, PJLink, Shure, HTTP, Banner). Ohne MAC (iOS).

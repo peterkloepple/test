@@ -1,5 +1,5 @@
 // ===========================================================================
-//  TerminalPingModel.swift - PA AV Toolbox iOS v1.0.0
+//  TerminalPingModel.swift - PA AV Toolbox iOS v1.0.1
 //  Autor: T. Pfeiffer
 //  Terminal: TCP / UDP mit Telnet-Aushandlung (IAC -> WONT/DONT), Vorlagen.
 //  Ping: ICMP-Dauerping mit Statistik.

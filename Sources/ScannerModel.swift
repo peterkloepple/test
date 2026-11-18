@@ -1,5 +1,5 @@
 // ===========================================================================
-//  ScannerModel.swift - PA AV Toolbox iOS v1.0.0
+//  ScannerModel.swift - PA AV Toolbox iOS v1.0.1
 //  Autor: T. Pfeiffer
 //  NetScanner (aus Toolbox 1.3.0): Port-Scan / IP-Scan / Deep-Scan.
 //  MAC-Scan und Herstellerspalte entfallen: iOS gibt Apps keinen Zugriff

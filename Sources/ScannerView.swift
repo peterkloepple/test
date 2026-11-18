@@ -1,5 +1,5 @@
 // ===========================================================================
-//  ScannerView.swift - PA AV Toolbox iOS v1.0.0
+//  ScannerView.swift - PA AV Toolbox iOS v1.0.1
 //  Autor: T. Pfeiffer
 // ===========================================================================
 import SwiftUI

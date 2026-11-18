@@ -1,5 +1,5 @@
 // ===========================================================================
-//  App.swift - PA AV Toolbox iOS v1.0.0
+//  App.swift - PA AV Toolbox iOS v1.0.1
 //  Autor: T. Pfeiffer
 //  iPhone-Version der Pfeiffer-Audio AV Toolbox (Windows 1.3.0).
 //  Reiter: NetScanner, Discovery, Terminal, Ping, Info
@@ -9,7 +9,7 @@ import UIKit
 
 enum AppInfo {
     static let name = "PA AV Toolbox"
-    static let version = "1.0.0"
+    static let version = "1.0.1"
     static let basedOn = "Windows-Toolbox 1.3.0"
     static let author = "T. Pfeiffer"
 }
