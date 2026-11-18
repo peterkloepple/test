@@ -26,8 +26,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Intel-Mac ist meist sofort frei (macos-26 stand oft lange in der Warteschlange)
-        os: [macos-15-intel]
+        # 18.11.2026: Intel-Mac wurde nicht zugeteilt -> ARM-Mac (macos-15); bei Engpass wieder macos-15-intel
+        os: [macos-15]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
     steps:
