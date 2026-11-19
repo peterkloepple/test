@@ -5,6 +5,8 @@
 #  Signieren + Installieren danach mit Sideloadly (Windows) und Apple-ID.
 #  Start: automatisch bei jedem Upload/Push oder manuell unter
 #         Actions > iOS-App bauen > Run workflow
+#  Download: direkt als .ipa unter Releases (toolbox-ios-v...) oder als
+#            ZIP unter Actions > Lauf > Artifacts
 # ===========================================================================
 name: iOS-App bauen
 
@@ -17,6 +19,9 @@ on:
     branches: [ios-app]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     strategy:
@@ -27,7 +32,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Quellcode holen
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Xcode-Version anzeigen
         run: xcodebuild -version
@@ -66,8 +71,22 @@ jobs:
           ls -la PA_AV_Toolbox_iOS_v1.0.1.ipa
 
       - name: IPA bereitstellen
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: PA_AV_Toolbox_iOS_v1.0.1_${{ matrix.os }}
           path: PA_AV_Toolbox_iOS_v1.0.1.ipa
           retention-days: 30
+
+      - name: Als direkten Download veroeffentlichen (Releases)
+        continue-on-error: true
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: toolbox-ios-v1.0.1
+          name: PA AV Toolbox iOS v1.0.1
+          target_commitish: ${{ github.sha }}
+          make_latest: false
+          files: PA_AV_Toolbox_iOS_v1.0.1.ipa
+          body: |
+            PA AV Toolbox fuer iPhone v1.0.1 - Autor: T. Pfeiffer
+            Unsignierte .ipa: herunterladen und mit Sideloadly installieren.
+            Neu: Handbuch in der App (Info > Handbuch oeffnen).
