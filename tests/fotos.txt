@@ -1,5 +1,6 @@
 # Bildschirmfotos im iPhone-Simulator:  dateiname|Startargumente
 01_verbinden|
+00_warm|-server http://127.0.0.1:8765/?k=testkey123&t=more
 02_plan|-server http://127.0.0.1:8765/?k=testkey123
 03_geraete|-server http://127.0.0.1:8765/?k=testkey123&t=devs
 04_kabel|-server http://127.0.0.1:8765/?k=testkey123&t=wires
@@ -7,3 +8,4 @@
 06_mehr|-server http://127.0.0.1:8765/?k=testkey123&t=more
 07_pc_fehlt|-server http://127.0.0.1:8799/?k=testkey123
 08_ohne_pc|-server http://127.0.0.1:8799/?k=testkey123 -offline 1
+09_plan_nochmal|-server http://127.0.0.1:8765/?k=testkey123
