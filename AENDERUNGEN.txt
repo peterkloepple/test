@@ -1,0 +1,1 @@
+Erste Version der iPhone-App zu PA Schematic: laedt ihre Oberflaeche vom PC (immer derselbe Stand wie das Programm), QR-Code zum Verbinden, Barcode-Scannen fuer Seriennummer und MAC, letzter Stand zum Ansehen ohne PC, Update-Pruefung.

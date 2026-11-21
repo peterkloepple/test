@@ -1,0 +1,61 @@
+# ===========================================================================
+#  project.yml - PA Schematic iOS v1.0.0  (XcodeGen)
+#  Autor: T. Pfeiffer
+#  Wird im GitHub-Workflow zu PASchematic.xcodeproj umgewandelt.
+# ===========================================================================
+name: PASchematic
+options:
+  bundleIdPrefix: de.tpfeiffer
+  deploymentTarget:
+    iOS: "16.0"
+targets:
+  PASchematic:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: PA Schematic
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        LSRequiresIPhoneOS: true
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UIUserInterfaceStyle: Dark
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        NSLocalNetworkUsageDescription: "PA Schematic verbindet sich im WLAN mit dem Programm auf deinem PC."
+        NSCameraUsageDescription: "Die Kamera scannt den QR-Code am PC, Barcodes von Seriennummern und MAC-Adressen und nimmt Fotos fuer das Projekt auf."
+        NSPhotoLibraryUsageDescription: "Fotos aus der Mediathek koennen in den Projektordner gelegt werden."
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+          NSAllowsArbitraryLoadsInWebContent: true
+          NSAllowsLocalNetworking: true
+        LSApplicationQueriesSchemes:
+          - sidestore
+          - altstore
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: de.tpfeiffer.paschematic
+        PRODUCT_NAME: PASchematic
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.0"
+        SWIFT_STRICT_CONCURRENCY: minimal
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_BITCODE: NO
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGN_IDENTITY: ""

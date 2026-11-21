@@ -1,0 +1,155 @@
+# ===========================================================================
+#  paschematic-ios.yml - PA Schematic iOS - Cloud-Build v1.0.0
+#  Autor: T. Pfeiffer
+#  Baut auf einem Cloud-Mac von GitHub eine UNSIGNIERTE .ipa und stellt sie
+#  als Release "PA Schematic iOS" zum Download bereit.
+#  Signieren + Installieren danach mit Sideloadly (Windows) oder SideStore/AltStore.
+#  Start: automatisch bei jedem Push auf den Branch paschematic-ios oder manuell.
+# ===========================================================================
+name: PA-Schematic-App bauen
+
+concurrency:
+  group: paschematic-ios
+  cancel-in-progress: true
+
+on:
+  push:
+    branches: [paschematic-ios]
+    paths-ignore: ["docs/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        # Intel-Mac ist meist sofort frei (macos-26 stand oft lange in der Warteschlange)
+        os: [macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    steps:
+      - name: Quellcode holen
+        uses: actions/checkout@v4
+
+      - name: Neuestes Xcode waehlen
+        run: |
+          X="$(ls -d /Applications/Xcode_26*.app /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)"
+          if [ -n "$X" ]; then sudo xcode-select -s "$X/Contents/Developer"; fi
+          xcodebuild -version
+
+      - name: XcodeGen installieren und Projekt erzeugen
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: App bauen (ohne Signatur)
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project PASchematic.xcodeproj \
+            -target PASchematic \
+            -configuration Release \
+            -sdk iphoneos \
+            SYMROOT="$PWD/build" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            build > build.log 2>&1 && RC=0 || RC=$?
+          grep -E "error:|BUILD (SUCCEEDED|FAILED)" build.log | sort -u | head -80 || true
+          exit $RC
+
+      - name: Fehlerliste bei Abbruch
+        if: failure()
+        run: |
+          grep -E "error:" build.log | sed -E 's#^.*/Sources/#Sources/#' | sort -u | head -60 > errors.txt || true
+          cat errors.txt
+          n=0
+          while IFS= read -r l; do
+            n=$((n+1)); [ $n -gt 50 ] && break
+            echo "::error::${l}"
+          done < errors.txt
+
+      - name: Fehlerliste hochladen
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-${{ matrix.os }}
+          path: build.log
+          retention-days: 5
+
+      - name: IPA packen
+        run: |
+          mkdir -p Payload
+          cp -R build/Release-iphoneos/PASchematic.app Payload/
+          zip -qry PASchematic_iOS.ipa Payload
+          ls -la PASchematic_iOS.ipa
+
+      - name: IPA bereitstellen
+        uses: actions/upload-artifact@v4
+        with:
+          name: PASchematic_iOS_${{ matrix.os }}
+          path: PASchematic_iOS.ipa
+          retention-days: 30
+
+  release:
+    needs: build
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Quellcode holen (Version + Aenderungen)
+        uses: actions/checkout@v4
+      - name: IPA holen
+        uses: actions/download-artifact@v4
+        with:
+          pattern: PASchematic_iOS_*
+          path: ipa
+      - name: Release aktualisieren (IPA, version.json, apps.json)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          BUILD: ${{ github.run_number }}
+        run: |
+          F="$(find ipa -name 'PASchematic_iOS.ipa' | head -1)"
+          if [ -z "$F" ]; then echo "keine IPA gebaut"; exit 1; fi
+          cp "$F" PASchematic_iOS.ipa
+          TAG="paschematic-ios-latest"
+          python3 - <<'PY'
+          import json, os, re, time
+          repo = os.environ["REPO"]; build = int(os.environ["BUILD"]); sha = os.environ["GITHUB_SHA"][:7]
+          ver = re.search(r'MARKETING_VERSION:\s*"([^"]+)"', open("project.yml").read()).group(1)
+          notes = open("AENDERUNGEN.txt", encoding="utf-8").read().strip() if os.path.exists("AENDERUNGEN.txt") else ""
+          base = "https://github.com/%s/releases/download/paschematic-ios-latest/" % repo
+          page = "https://github.com/%s/releases/tag/paschematic-ios-latest" % repo
+          size = os.path.getsize("PASchematic_iOS.ipa")
+          now = time.gmtime()
+          v = {"version": ver, "build": build, "date": time.strftime("%Y-%m-%d %H:%M UTC", now), "commit": sha,
+               "notes": notes, "ipa": base + "PASchematic_iOS.ipa", "page": page, "source": base + "apps.json"}
+          json.dump(v, open("version.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+          iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", now)
+          icon = "https://raw.githubusercontent.com/%s/paschematic-ios/Sources/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png" % repo
+          desc = "PA Schematic fuer iPhone und iPad: Blockschaltbild, Montage, Rack, Aufmass und Fotos - verbunden mit dem Programm am PC."
+          app = {"name": "PA Schematic", "bundleIdentifier": "de.tpfeiffer.paschematic", "developerName": "T. Pfeiffer",
+                 "subtitle": "Blockschaltbild unterwegs", "localizedDescription": desc, "iconURL": icon, "tintColor": "0A84FF",
+                 "category": "utilities", "screenshotURLs": [],
+                 "versions": [{"version": ver, "buildVersion": str(build), "date": iso, "localizedDescription": notes,
+                               "downloadURL": base + "PASchematic_iOS.ipa", "size": size, "minOSVersion": "16.0"}],
+                 "version": ver, "versionDate": iso, "versionDescription": notes,
+                 "downloadURL": base + "PASchematic_iOS.ipa", "size": size,
+                 "appPermissions": {"entitlements": [], "privacy": {"NSLocalNetworkUsageDescription": "Verbindet sich im WLAN mit PA Schematic am PC.", "NSCameraUsageDescription": "QR-Code, Barcodes und Fotos."}}}
+          src = {"name": "PA Schematic", "identifier": "de.tpfeiffer.paschematic.source", "subtitle": "T. Pfeiffer",
+                 "sourceURL": base + "apps.json", "apps": [app], "news": []}
+          json.dump(src, open("apps.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+          open("notes.txt", "w", encoding="utf-8").write("PA Schematic iOS v%s (Build %d, Commit %s)\n\n%s\n\nInstallieren mit Sideloadly (Anleitung im Handbuch) oder ueber AltStore/SideStore (Quelle: %sapps.json)." % (ver, build, sha, notes, base))
+          print(open("version.json").read())
+          PY
+          if gh release view "$TAG" -R "$REPO" >/dev/null 2>&1; then
+            gh release upload "$TAG" PASchematic_iOS.ipa version.json apps.json --clobber -R "$REPO"
+            gh release edit "$TAG" --notes-file notes.txt -R "$REPO"
+          else
+            gh release create "$TAG" PASchematic_iOS.ipa version.json apps.json --target "$GITHUB_SHA" --title "PA Schematic iOS" --notes-file notes.txt -R "$REPO"
+          fi
+
