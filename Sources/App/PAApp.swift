@@ -41,6 +41,8 @@ final class AppState: ObservableObject {
 
     init() {
         mode = server.isEmpty ? .connect : .online
+        // Startargument "-offline 1": gleich den gesicherten Stand zeigen (fuer Tests)
+        if UserDefaults.standard.bool(forKey: "offline") && Offline.available { mode = .offline }
     }
 
     /// Adresse des PCs mit Schluessel, z. B. http://192.168.178.23:8765/?k=abc

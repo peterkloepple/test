@@ -1,0 +1,83 @@
+# ===========================================================================
+#  paschematic-ios-fotos.yml - PA Schematic iOS - Test und Bildschirmfotos im Simulator
+#  Autor: T. Pfeiffer
+#  Baut die App fuer den iPhone-Simulator, startet einen Nachbau des Programms am PC
+#  (tests/mock_pc.py) und fotografiert die Seiten aus tests/fotos.txt.
+#  Die Bilder liegen danach als Artefakt "fotos" am Lauf.
+# ===========================================================================
+name: PA-Schematic-App Fotos
+
+on:
+  push:
+    branches: [paschematic-ios]
+    paths: ["tests/**", ".github/workflows/paschematic-ios-fotos.yml", "Sources/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fotos:
+    runs-on: macos-15-intel
+    timeout-minutes: 60
+    steps:
+      - name: Quellcode holen
+        uses: actions/checkout@v4
+      - name: Neuestes Xcode waehlen
+        run: |
+          X="$(ls -d /Applications/Xcode_26*.app /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)"
+          if [ -n "$X" ]; then sudo xcode-select -s "$X/Contents/Developer"; fi
+          xcodebuild -version
+      - name: Projekt erzeugen
+        run: |
+          brew install xcodegen
+          xcodegen generate
+      - name: Fuer Simulator bauen
+        run: |
+          set -o pipefail
+          xcodebuild -project PASchematic.xcodeproj -target PASchematic -configuration Debug \
+            -sdk iphonesimulator SYMROOT="$PWD/simbuild" CODE_SIGNING_ALLOWED=NO build > sim.log 2>&1 && RC=0 || RC=$?
+          grep -E "error:|BUILD (SUCCEEDED|FAILED)" sim.log | sort -u | head -40 || true
+          exit $RC
+      - name: Simulator starten und Seiten fotografieren
+        run: |
+          python3 tests/mock_pc.py 8765 &
+          sleep 2
+          curl -s -o /dev/null -w "Nachbau: %{http_code}\n" "http://127.0.0.1:8765/api/state"
+          DEV="$(xcrun simctl list devices available -j | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)['devices']
+          c=[x for k,v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone') and 'Pro' in x['name'] and 'Max' not in x['name']]
+          c=c or [x for k,v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone')]
+          print(c[-1]['udid'])")"
+          xcrun simctl list devices available | grep "$DEV" || true
+          xcrun simctl boot "$DEV"
+          xcrun simctl bootstatus "$DEV" -b
+          xcrun simctl ui "$DEV" appearance dark || true
+          xcrun simctl status_bar "$DEV" override --time "9:41" --batteryState charged --batteryLevel 100 --wifiBars 3 --cellularBars 4 || true
+          APP="$(find simbuild -name 'PASchematic.app' -type d | head -1)"
+          xcrun simctl install "$DEV" "$APP"
+          mkdir -p shots
+          xcrun simctl launch "$DEV" de.tpfeiffer.paschematic >/dev/null; sleep 25
+          while IFS='|' read -r name args; do
+            [ -z "$name" ] && continue
+            case "$name" in \#*) continue;; esac
+            xcrun simctl terminate "$DEV" de.tpfeiffer.paschematic >/dev/null 2>&1 || true
+            sleep 1
+            # shellcheck disable=SC2086
+            xcrun simctl launch "$DEV" de.tpfeiffer.paschematic $args >/dev/null
+            sleep 16
+            xcrun simctl io "$DEV" screenshot "shots/$name.png" >/dev/null 2>&1
+            echo "$name"
+          done < tests/fotos.txt
+          ls -la shots
+          mkdir -p shots/_crash
+          cp ~/Library/Logs/DiagnosticReports/PASchematic* shots/_crash/ 2>/dev/null || true
+          ls shots/_crash | head
+      - name: Fotos bereitstellen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fotos
+          path: shots
+          retention-days: 14

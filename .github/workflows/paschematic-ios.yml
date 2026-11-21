@@ -15,7 +15,7 @@ concurrency:
 on:
   push:
     branches: [paschematic-ios]
-    paths-ignore: ["docs/**"]
+    paths-ignore: ["docs/**", "tests/**", ".github/workflows/paschematic-ios-fotos.yml"]
   workflow_dispatch:
 
 permissions:

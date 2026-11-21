@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PA Schematic">
+<meta name="theme-color" content="#121315">
+<link rel="apple-touch-icon" href="/icon.png">
+<title>PA Schematic</title>
+<style>
+:root{--bg:#121315;--panel:#1A1B1E;--base:#0F1012;--raised:#25272B;--hi:#303237;--line:#27292D;--border:#34363B;
+--text:#ECEDEF;--muted:#8E9198;--acc:#0A84FF;--ok:#30D158;--warn:#FF9F0A;--bad:#FF453A;--open:#8E8E93;
+--st:env(safe-area-inset-top,0px);--sb:env(safe-area-inset-bottom,0px)}
+body.light{--bg:#E4E5E9;--panel:#F4F4F6;--base:#FFFFFF;--raised:#E8E9ED;--hi:#DCDEE3;--line:#DADCE1;--border:#C9CCD3;
+--text:#17181A;--muted:#666A72}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:16px/1.35 -apple-system,"SF Pro Text",system-ui,"Segoe UI",sans-serif;
+overflow:hidden;overscroll-behavior:none;-webkit-text-size-adjust:100%;-webkit-user-select:none;user-select:none}
+button,input,select,textarea{font:inherit;color:inherit}
+#top{position:fixed;left:0;right:0;top:0;padding:calc(var(--st) + 8px) 14px 8px;background:var(--bg);border-bottom:1px solid var(--line);
+display:flex;align-items:center;gap:8px;z-index:5;height:calc(var(--st) + 56px)}
+#top .tt{flex:1;min-width:0}
+#top h1{margin:0;font-size:17px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#top p{margin:0;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ib{width:40px;height:40px;border-radius:11px;border:0;background:transparent;display:grid;place-items:center;flex:none}
+.ib:active{background:var(--raised)}
+.ib[disabled]{opacity:.28}
+.ib svg,#tabs svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+#view{position:fixed;left:0;right:0;top:calc(var(--st) + 56px);bottom:calc(var(--sb) + 58px);overflow:auto;-webkit-overflow-scrolling:touch}
+#view.fix{overflow:hidden}
+#tabs{position:fixed;left:0;right:0;bottom:0;height:calc(var(--sb) + 58px);padding-bottom:var(--sb);background:var(--panel);
+border-top:1px solid var(--line);display:flex;z-index:5}
+#tabs button{flex:1;border:0;background:transparent;color:var(--muted);font-size:11px;display:flex;flex-direction:column;
+align-items:center;justify-content:center;gap:3px}
+#tabs button.on{color:var(--acc)}
+.pad{padding:12px 14px 24px}
+.chips{display:flex;gap:7px;overflow-x:auto;padding:10px 14px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1px solid var(--border);background:var(--panel);color:var(--text);border-radius:17px;padding:7px 14px;font-size:14px}
+.chip.on{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+.search{width:100%;background:var(--base);border:1px solid var(--border);border-radius:11px;padding:10px 12px;outline:none}
+.search:focus,.f input:focus,.f select:focus,.f textarea:focus{border-color:var(--acc)}
+.bar{height:8px;border-radius:4px;background:var(--border);overflow:hidden;display:flex}
+.bar i{display:block;height:100%}
+.sum{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin:10px 0 6px}
+.row{display:flex;align-items:center;gap:12px;padding:11px 14px;border-bottom:1px solid var(--line);min-height:58px}
+.row:active{background:var(--panel)}
+.row .m{flex:1;min-width:0}
+.row b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row small{display:block;color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dot{width:34px;height:34px;border-radius:17px;border:2px solid var(--open);background:transparent;flex:none;display:grid;place-items:center}
+.dot.montiert{border-color:var(--warn);background:var(--warn)}
+.dot.geprüft{border-color:var(--ok);background:var(--ok)}
+.dot svg{width:18px;height:18px;stroke:#111;stroke-width:2.6;fill:none;stroke-linecap:round;stroke-linejoin:round;display:none}
+.dot.geprüft svg,.dot.montiert svg{display:block}
+.sig{width:5px;align-self:stretch;border-radius:3px;flex:none}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.tile b{display:block;font-size:19px;font-weight:650}
+.tile b.bad{color:var(--bad)}
+.tile small{color:var(--muted);font-size:12.5px}
+h2{font-size:13px;font-weight:600;color:var(--muted);margin:22px 0 8px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.card .row:last-child{border-bottom:0}
+.btn{display:block;width:100%;border:1px solid var(--border);background:var(--raised);border-radius:12px;padding:12px 14px;
+font-weight:600;text-align:center;margin-top:8px}
+.btn:active{background:var(--hi)}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:#fff}
+.btn.del{color:var(--bad)}
+.btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.btns .btn{margin:0}
+.f{display:grid;grid-template-columns:118px 1fr;gap:8px 10px;align-items:center}
+.f label{color:var(--muted);font-size:14px}
+.f input,.f select,.f textarea{width:100%;background:var(--base);border:1px solid var(--border);border-radius:10px;padding:9px 11px;
+outline:none;-webkit-user-select:text;user-select:text;-webkit-appearance:none;appearance:none}
+.f textarea{min-height:74px;resize:none}
+.seg{display:flex;background:var(--base);border:1px solid var(--border);border-radius:11px;padding:3px;gap:3px}
+.seg button{flex:1;border:0;background:transparent;border-radius:8px;padding:8px 4px;font-size:14px;color:var(--muted)}
+.seg button.on{background:var(--raised);color:var(--text);font-weight:600}
+.seg button.on.montiert{background:var(--warn);color:#111}
+.seg button.on.geprüft{background:var(--ok);color:#111}
+#pz{position:absolute;inset:0;overflow:hidden;touch-action:none;background:var(--base)}
+#pz img{position:absolute;left:0;top:0;transform-origin:0 0;max-width:none;-webkit-user-drag:none;pointer-events:none}
+.fab{position:absolute;right:14px;width:52px;height:52px;border-radius:26px;border:0;background:var(--acc);color:#fff;display:grid;
+place-items:center;box-shadow:0 6px 18px rgba(0,0,0,.45);z-index:3}
+.fab.sec{background:var(--raised);color:var(--text);border:1px solid var(--border)}
+.fab svg{width:25px;height:25px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+#ban{position:absolute;left:12px;right:12px;top:10px;background:var(--acc);color:#fff;border-radius:13px;padding:11px 14px;
+display:flex;align-items:center;gap:10px;z-index:4;font-weight:600;font-size:15px}
+#ban button{border:0;background:rgba(255,255,255,.22);color:#fff;border-radius:9px;padding:6px 11px;font-weight:600}
+#shade{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:8;opacity:0;pointer-events:none;transition:opacity .2s}
+#shade.on{opacity:1;pointer-events:auto}
+#sheet{position:fixed;left:0;right:0;bottom:0;max-height:88%;background:var(--bg);border-radius:18px 18px 0 0;z-index:9;
+transform:translateY(102%);transition:transform .24s cubic-bezier(.2,.8,.2,1);display:flex;flex-direction:column;
+border-top:1px solid var(--border)}
+#sheet.on{transform:none}
+#sheet .hd{display:flex;align-items:center;gap:8px;padding:12px 8px 8px 16px;border-bottom:1px solid var(--line)}
+#sheet .hd h3{flex:1;margin:0;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#sheet .bd{overflow:auto;-webkit-overflow-scrolling:touch;padding:14px 16px calc(var(--sb) + 22px)}
+#toast{position:fixed;left:50%;bottom:calc(var(--sb) + 72px);transform:translate(-50%,20px);background:var(--raised);
+border:1px solid var(--border);border-radius:13px;padding:10px 16px;z-index:20;opacity:0;transition:all .2s;pointer-events:none;
+max-width:88%;text-align:center;font-size:15px}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+#toast.bad{background:var(--bad);border-color:var(--bad);color:#fff}
+.pics{display:flex;gap:8px;overflow-x:auto;margin:10px 0}
+.pics img{height:96px;border-radius:10px;border:1px solid var(--line);background:#fff}
+.port{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+.port:last-child{border-bottom:0}
+.port i{width:13px;height:13px;border-radius:7px;flex:none}
+.port i.in{border-radius:3px}
+.port .m{flex:1;min-width:0}
+.port small{display:block;color:var(--muted);font-size:12.5px;white-space:normal}
+.mini{border:1px solid var(--border);background:var(--raised);border-radius:9px;padding:6px 10px;font-size:13.5px;flex:none}
+.empty{color:var(--muted);text-align:center;padding:46px 26px}
+.empty b{display:block;color:var(--text);font-size:18px;margin-bottom:6px}
+table.t{border-collapse:collapse;font-size:13.5px;white-space:nowrap}
+table.t th{position:sticky;top:0;background:var(--panel);color:var(--muted);text-align:left;padding:8px 10px;border-bottom:1px solid var(--border)}
+table.t td{padding:8px 10px;border-bottom:1px solid var(--line)}
+@media(min-width:760px){.tiles{grid-template-columns:repeat(4,1fr)}.pad{max-width:980px;margin:0 auto}}
+</style>
+</head>
+<body>
+<header id="top">
+  <div class="tt"><h1 id="t1">PA Schematic</h1><p id="t2">Verbinde ...</p></div>
+  <button class="ib" id="bUndo" aria-label="Rückgängig"><svg viewBox="0 0 24 24"><path d="M9 6 4 11l5 5"/><path d="M4 11h10a5 5 0 0 1 0 10h-4"/></svg></button>
+  <button class="ib" id="bRedo" aria-label="Wiederholen"><svg viewBox="0 0 24 24"><path d="m15 6 5 5-5 5"/><path d="M20 11H10a5 5 0 0 0 0 10h4"/></svg></button>
+  <button class="ib" id="bSave" aria-label="Speichern"><svg viewBox="0 0 24 24"><path d="M4 4h13l3 3v13H4z"/><path d="M8 4v5h7V4M7 20v-6h10v6"/></svg></button>
+</header>
+<main id="view"></main>
+<nav id="tabs">
+  <button data-t="plan"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="7" height="6" rx="1.5"/><rect x="14" y="14" width="7" height="6" rx="1.5"/><path d="M10 7h4v10"/></svg>Plan</button>
+  <button data-t="devs"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="6" rx="1.5"/><rect x="3" y="13" width="18" height="6" rx="1.5"/><path d="M7 8h.01M7 16h.01"/></svg>Geräte</button>
+  <button data-t="wires"><svg viewBox="0 0 24 24"><path d="M4 18h5V7h11"/><circle cx="4" cy="18" r="1.6"/><circle cx="20" cy="7" r="1.6"/></svg>Kabel</button>
+  <button data-t="rack"><svg viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="18" rx="1.5"/><path d="M6 8h12M6 13h12M9 5.5h2M9 10.5h2M9 16h2"/></svg>Rack</button>
+  <button data-t="more"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg>Mehr</button>
+</nav>
+<div id="shade"></div>
+<section id="sheet"><div class="hd"><h3 id="sh"></h3><button class="ib" id="shx" aria-label="Schließen"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div><div class="bd" id="sb"></div></section>
+<div id="toast"></div>
+<input type="file" id="cam" accept="image/*" capture="environment" hidden>
+<!--PA_OFFLINE-->
+<script>
+"use strict";
+const $=s=>document.querySelector(s), view=$("#view");
+const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const num=(v,d)=>(+v||0).toFixed(d==null?1:d).replace(".",",");
+let K=new URLSearchParams(location.search).get("k")||"";
+try{ if(K) localStorage.setItem("pak",K); else K=localStorage.getItem("pak")||""; }catch(e){}
+/* OFF: Stand ohne Verbindung zum PC (von der iPhone-App gesichert); NAT: laeuft in der iPhone-App */
+const OFF=window.PA_OFFLINE||null, NAT=!!(window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.pa);
+const nat=(cmd,o)=>{ if(NAT) window.webkit.messageHandlers.pa.postMessage(Object.assign({cmd:cmd},o||{})); };
+const okey=p=>{ const i=p.indexOf("?"); if(i<0) return p; const q=p.slice(i+1).split("&").filter(x=>x&&!/^(v|k)=/.test(x)); return p.slice(0,i)+(q.length?"?"+q.join("&"):""); };
+const ml=document.createElement("link"); ml.rel="manifest"; ml.href="/manifest.json?k="+encodeURIComponent(K); document.head.appendChild(ml);
+let S=null, tab="plan", sub=null, devs=[], wires=[], plan=null, flt="alle", wflt="alle", qd="", qw="", mode=null, rackSel=null, rackSide="front", lost=0;
+const CHECK='<svg viewBox="0 0 24 24"><path d="M5 13l5 5 9-11"/></svg>';
+
+function toast(t,bad){ const e=$("#toast"); e.textContent=t; e.className="on"+(bad?" bad":""); clearTimeout(toast.t); toast.t=setTimeout(()=>e.className="",bad?4200:2400); }
+async function api(path,data,raw){
+  if(OFF){
+    if(data!==undefined){ toast("Ohne Verbindung zum PC lässt sich nichts ändern",true); throw new Error("offline"); }
+    const r=OFF.data[okey(path)];
+    if(r===undefined){ toast("Das ist ohne Verbindung zum PC nicht gesichert",true); throw new Error("offline"); }
+    return JSON.parse(JSON.stringify(r));
+  }
+  const o={headers:{"X-Key":K}};
+  if(data!==undefined){ o.method="POST"; o.body=raw?data:JSON.stringify(data); }
+  let r;
+  try{ r=await fetch(path,o); }catch(e){ toast("Keine Verbindung zum PC",true); throw e; }
+  const j=await r.json().catch(()=>({err:"Unerwartete Antwort"}));
+  if(!r.ok){ toast(j.err||("Fehler "+r.status),true); throw new Error(j.err); }
+  return j;
+}
+const src=p=>OFF?(OFF.img[okey(p)]||""):p+(p.includes("?")?"&":"?")+"k="+encodeURIComponent(K);
+const cmpv=(a,b)=>{ const x=a.split(".").map(Number), y=b.split(".").map(Number); for(let i=0;i<3;i++){ if((x[i]||0)!==(y[i]||0)) return (x[i]||0)-(y[i]||0); } return 0; };
+
+/* ---------- Zustand und Auffrischen ---------- */
+function head(s){
+  document.body.classList.toggle("light",!s.dark);
+  document.documentElement.style.setProperty("--acc",s.accent);
+  $("#t1").textContent=s.title||s.app;
+  $("#t2").textContent=OFF?("Ohne PC - Stand vom "+OFF.time):(s.file||"noch nicht gespeichert")+(s.modified?" - geändert":"")+(s.sheets.length>1?"  |  "+s.sheets[s.cur]:"");
+  $("#bUndo").disabled=OFF||!s.undo; $("#bRedo").disabled=OFF||!s.redo; $("#bSave").disabled=!!OFF;
+}
+async function poll(force){
+  if(OFF){ if(!S){ S=OFF.data["/api/state"]; head(S); await load(); } return; }
+  let s;
+  try{ s=await fetch("/api/state",{headers:{"X-Key":K}}).then(r=>r.ok?r.json():r.json().then(j=>Promise.reject(j))); lost=0; }
+  catch(e){ lost++; $("#t2").textContent=(e&&e.err)?e.err:"Keine Verbindung zum PC ..."; if(e&&e.err&&!S) view.innerHTML='<div class="empty"><b>Kein Zugang</b>'+esc(e.err)+'</div>'; return; }
+  const ch=!S||S.ver!==s.ver; S=s;
+  head(s);
+  if(NAT&&!poll.told){ poll.told=1; nat("ready",{version:s.version});
+    const m=navigator.userAgent.match(/PASchematicApp\/([\d.]+)/); if(m&&s.shell&&cmpv(m[1],s.shell)<0) setTimeout(()=>toast("Bitte die App aktualisieren - nötig ist Version "+s.shell,true),1500); }
+  if(ch||force){ if(document.activeElement&&/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)&&!force) { S.ver="-"; return; } await load(); }
+}
+async function load(){
+  if(tab==="plan"){ plan=await api("/api/plan"); }
+  if(tab==="devs"||tab==="plan"||tab==="more") devs=await api("/api/devices");
+  if(tab==="wires") wires=await api("/api/wires");
+  draw();
+}
+function go(t){ tab=t; sub=null; mode=null; document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.t===t)); view.scrollTop=0; load().catch(()=>{}); }
+function draw(){ ({plan:drawPlan,devs:drawDevs,wires:drawWires,rack:drawRack,more:drawMore})[tab](); }
+
+/* ---------- Zoom und Schieben fuer Bilder ---------- */
+function panzoom(box,img,onTap){
+  const st={x:0,y:0,s:1,b:1}, key=img.dataset.k; let pts=new Map(), last=null, moved=0, t0=0;
+  const apply=()=>{ img.style.transform="translate("+st.x+"px,"+st.y+"px) scale("+(st.b*st.s)+")"; panzoom.mem[key]={x:st.x,y:st.y,s:st.s}; };
+  const fit=()=>{ if(!img.naturalWidth) return; const w=box.clientWidth,h=box.clientHeight; st.b=Math.min(w/img.naturalWidth,h/img.naturalHeight); st.s=1;
+    st.x=(w-img.naturalWidth*st.b)/2; st.y=(h-img.naturalHeight*st.b)/2; apply(); };
+  const zoomAt=(px,py,f)=>{ const ns=Math.max(.6,Math.min(14,st.s*f)); f=ns/st.s; st.x=px-(px-st.x)*f; st.y=py-(py-st.y)*f; st.s=ns; apply(); };
+  const pos=e=>{ const r=box.getBoundingClientRect(); return {x:e.clientX-r.left,y:e.clientY-r.top}; };
+  box.onpointerdown=e=>{ box.setPointerCapture(e.pointerId); pts.set(e.pointerId,pos(e)); if(pts.size===1){ moved=0; t0=Date.now(); } last=null; };
+  box.onpointermove=e=>{ if(!pts.has(e.pointerId)) return; const p=pos(e), o=pts.get(e.pointerId); pts.set(e.pointerId,p);
+    if(pts.size===1){ st.x+=p.x-o.x; st.y+=p.y-o.y; moved+=Math.abs(p.x-o.x)+Math.abs(p.y-o.y); apply(); }
+    else if(pts.size===2){ const a=[...pts.values()], d=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y), c={x:(a[0].x+a[1].x)/2,y:(a[0].y+a[1].y)/2};
+      if(last){ zoomAt(c.x,c.y,d/last.d); st.x+=c.x-last.c.x; st.y+=c.y-last.c.y; apply(); } last={d,c}; moved+=9; } };
+  const up=e=>{ if(!pts.has(e.pointerId)) return; const p=pts.get(e.pointerId); pts.delete(e.pointerId); last=null;
+    if(pts.size===0&&moved<9&&Date.now()-t0<450&&onTap){ const k=st.b*st.s; onTap((p.x-st.x)/k,(p.y-st.y)/k); } };
+  box.onpointerup=up; box.onpointercancel=up;
+  box.onwheel=e=>{ e.preventDefault(); const p=pos(e); zoomAt(p.x,p.y,e.deltaY<0?1.15:1/1.15); };
+  img.onload=()=>{ const m=panzoom.mem[key]; fit(); if(m){ st.x=m.x; st.y=m.y; st.s=m.s; apply(); } };
+  return {fit,st};
+}
+panzoom.mem={};
+
+/* ---------- Plan ---------- */
+function drawPlan(){
+  view.className="fix"; view.onclick=null;
+  if(!plan){ view.innerHTML=""; return; }
+  const chips=S.sheets.length>1?'<div class="chips" style="position:absolute;left:0;right:0;top:0;z-index:2">'+S.sheets.map((n,i)=>'<button class="chip'+(i===S.cur?" on":"")+'" data-sheet="'+i+'">'+esc(n)+'</button>').join("")+'</div>':"";
+  const ban=mode?'<div id="ban"><span style="flex:1">'+esc(mode.text)+'</span><button id="banx">Abbrechen</button></div>':"";
+  view.innerHTML='<div id="pz"><img alt="" data-k="plan'+S.cur+'"></div>'+(mode?"":chips)+ban+
+    (plan.empty&&!mode?'<div class="empty" style="position:absolute;left:0;right:0;top:30%"><b>Der Plan ist noch leer</b>Mit dem Plus ein Gerät aus der Bibliothek einfügen.</div>':"")+
+    '<button class="fab sec" id="fFit" style="bottom:82px" aria-label="Alles zeigen"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button>'+
+    (OFF?"":'<button class="fab" id="fAdd" style="bottom:18px" aria-label="Gerät einfügen"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>');
+  const img=view.querySelector("img"), pz=panzoom($("#pz"),img,(ix,iy)=>{
+    const k=img.naturalWidth/plan.rect[2], x=plan.rect[0]+ix/k, y=plan.rect[1]+iy/k;
+    if(mode){ const m=mode; mode=null; m.done(x,y); return; }
+    const d=plan.devs.find(d=>x>=d.x&&x<=d.x+d.w&&y>=d.y&&y<=d.y+d.h);
+    if(d) openDev(d.id);
+  });
+  img.src=src("/plan.png?v="+plan.ver);
+  $("#fFit").onclick=pz.fit; if($("#fAdd")) $("#fAdd").onclick=addDev;
+  if(mode) $("#banx").onclick=()=>{ mode=null; drawPlan(); };
+  view.querySelectorAll("[data-sheet]").forEach(b=>b.onclick=async()=>{ await api("/api/sheet",{i:+b.dataset.sheet}); panzoom.mem={}; await poll(true); });
+}
+function addDev(){
+  sheet("Gerät einfügen",'<input class="search" id="lq" placeholder="Bibliothek durchsuchen ..." autocomplete="off"><div id="lr" style="margin:10px -16px 0"></div>');
+  const run=async()=>{ const r=await api("/api/lib?q="+encodeURIComponent($("#lq").value));
+    $("#lr").innerHTML=r.map(t=>'<div class="row" data-i="'+t.i+'"><div class="m"><b>'+esc(t.label)+'</b><small>'+esc(t.cat)+" - "+t.ports+" Anschlüsse"+(t.he?", "+t.he+" HE":"")+'</small></div></div>').join("")||'<div class="empty">Nichts gefunden.</div>';
+    $("#lr").querySelectorAll(".row").forEach(e=>e.onclick=()=>{ const i=+e.dataset.i; closeSheet();
+      if(tab!=="plan"||plan.empty){ place(i); return; }
+      mode={text:"Auf die Stelle im Plan tippen",done:(x,y)=>place(i,x,y)}; drawPlan(); }); };
+  let t; $("#lq").oninput=()=>{ clearTimeout(t); t=setTimeout(run,220); }; run();
+}
+async function place(i,x,y){ const r=await api("/api/add",x==null?{i}:{i,x,y}); toast("Gerät eingefügt"); panzoom.mem={}; if(tab!=="plan") go("plan"); else await poll(true); if(r.id) openDev(r.id); }
+
+/* ---------- Geraete ---------- */
+function stBar(list){ const n=list.length||1, ok=list.filter(d=>d.st==="geprüft").length, mo=list.filter(d=>d.st==="montiert").length;
+  return '<div class="sum"><span>'+mo+' montiert, '+ok+' geprüft</span><span>'+list.length+' gesamt</span></div><div class="bar"><i style="width:'+100*ok/n+'%;background:var(--ok)"></i><i style="width:'+100*mo/n+'%;background:var(--warn)"></i></div>'; }
+function fchips(cur,id){ return '<div class="chips" style="padding:10px 0 2px">'+["alle","offen","montiert","geprüft"].map(f=>'<button class="chip'+(f===cur?" on":"")+'" data-'+id+'="'+f+'">'+(f==="alle"?"Alle":f[0].toUpperCase()+f.slice(1))+'</button>').join("")+'</div>'; }
+function drawDevs(){
+  view.className="";
+  const all=devs.filter(d=>!d.hide), q=qd.toLowerCase();
+  const list=all.filter(d=>(flt==="alle"||d.st===flt)&&(!q||(d.name+" "+d.tag+" "+d.mfr+" "+d.model+" "+d.rack+" "+d.ip+" "+d.room+" "+d.sn+" "+d.mac).toLowerCase().includes(q)))
+    .sort((a,b)=>(a.tag?0:1)-(b.tag?0:1)||a.tag.localeCompare(b.tag,undefined,{numeric:true})||a.name.localeCompare(b.name));
+  view.innerHTML='<div class="pad" style="padding-bottom:6px"><div style="display:flex;gap:8px"><input class="search" id="q" placeholder="Gerät, Kennzeichen, Rack, IP ..." value="'+esc(qd)+'" autocomplete="off">'+
+    (NAT?'<button class="mini" id="qs" style="border-radius:11px;padding:0 13px">Scannen</button>':"")+'</div>'+stBar(all)+fchips(flt,"f")+'</div>'+
+    (list.map(d=>'<div class="row" data-id="'+d.id+'"><button class="dot '+d.st+'" data-st="'+d.id+'" aria-label="Status">'+CHECK+'</button><div class="m"><b>'+esc((d.tag?d.tag+"  ":"")+d.name)+'</b><small>'+
+      esc([d.mfr,d.model,d.rack&&(d.rack+(d.pos?" HE "+d.pos:"")),d.room,d.ip].filter(Boolean).join("  |  ")||"-")+'</small></div></div>').join("")||
+      '<div class="empty"><b>Keine Geräte</b>'+(all.length?"Für diesen Filter gibt es keine Treffer.":"Im Plan steht noch kein Gerät.")+'</div>');
+  const qi=$("#q"); qi.oninput=()=>{ qd=qi.value; clearTimeout(drawDevs.t); drawDevs.t=setTimeout(()=>{ drawDevs(); const n=$("#q"); n.focus(); n.setSelectionRange(n.value.length,n.value.length); },260); };
+  view.querySelectorAll("[data-f]").forEach(b=>b.onclick=()=>{ flt=b.dataset.f; drawDevs(); });
+  if($("#qs")) $("#qs").onclick=()=>nat("scan",{key:"find"});
+  view.onclick=rowTap(devs,drawDevs,openDev);
+}
+/* Tippen auf eine Zeile: Die Liste wird alle paar Sekunden neu gezeichnet - deshalb zaehlt die Stelle, nicht das Element */
+function rowTap(list,redraw,open){ return e=>{ const el=document.elementFromPoint(e.clientX,e.clientY); if(!el) return;
+  const st=el.closest("[data-st]"), row=el.closest(".row[data-id]"); if(st) cycle(list,st.dataset.st,redraw); else if(row) open(row.dataset.id); }; }
+async function cycle(list,id,redraw){ const d=list.find(x=>x.id===id), order=S.status, n=order[(order.indexOf(d.st)+1)%order.length];
+  const old=d.st; d.st=n; redraw(); try{ await api("/api/status",{ids:[id],st:n}); S.ver="-"; }catch(e){ d.st=old; redraw(); } }
+
+async function openDev(id){
+  const d=await api("/api/device?id="+encodeURIComponent(id));
+  const fld=(k,l,t)=>{ const i='<input data-k="'+k+'" value="'+esc(d[k])+'"'+(t?' inputmode="'+t+'"':'')+' autocomplete="off" autocapitalize="off" spellcheck="false">';
+    return '<label>'+l+'</label>'+(NAT&&!OFF&&(k==="sn"||k==="mac")?'<div style="display:flex;gap:6px">'+i+'<button class="mini" data-scan="'+k+'">Scannen</button></div>':i); };
+  sheet((d.tag?d.tag+"  ":"")+d.name,
+    '<div class="seg" id="seg">'+S.status.map(s=>'<button class="'+s+(d.st===s?" on":"")+'" data-s="'+s+'">'+s[0].toUpperCase()+s.slice(1)+'</button>').join("")+'</div>'+
+    (d.pics.length?'<div class="pics">'+d.pics.map(p=>'<img src="'+src("/pic?key="+encodeURIComponent(p[1]))+'" alt="'+esc(p[0])+'">').join("")+'</div>':"")+
+    '<div class="btns" style="margin-top:12px"><button class="btn" id="dFoto">Foto aufnehmen</button><button class="btn" id="dShow">Im Plan zeigen</button>'+
+    (d.doc&&!OFF?'<a class="btn" style="text-decoration:none" href="'+src("/doc?id="+encodeURIComponent(d.id))+'" target="_blank">Datenblatt</a>':"")+
+    (d.hide?"":'<button class="btn" id="dMove">Verschieben</button>')+'</div>'+
+    '<h2>Angaben</h2><div class="f">'+fld("name","Name")+fld("tag","Kennzeichen")+fld("mfr","Hersteller")+fld("model","Modell")+fld("sn","Seriennummer")+fld("mac","MAC-Adressen")+
+      fld("ip","IP-Adresse","decimal")+fld("rack","Rack")+fld("he","Höheneinheiten","numeric")+fld("pos","Rack-Position","numeric")+fld("watt","Leistung W","decimal")+fld("kg","Gewicht kg","decimal")+
+      '<label>Bemerkung</label><textarea data-k="note">'+esc(d.note)+'</textarea></div>'+
+    '<h2>Anschlüsse ('+d.ports.length+')</h2><div>'+(d.ports.map(p=>'<div class="port"><i class="'+p.dir+'" style="background:'+p.col+'"></i><div class="m">'+esc(p.name)+'<small>'+esc(p.sig+(p.conn?", "+p.conn:""))+
+      (p.wires.length?"<br>"+p.wires.map(w=>esc(w.text)).join("<br>"):"")+'</small></div>'+
+      (p.wires.length?p.wires.map(w=>'<button class="mini" data-w="'+w.id+'">Kabel</button>').join(""):"")+
+      (d.hide||(p.wires.length&&p.dir==="in")?"":'<button class="mini" data-p="'+p.id+'">Verbinden</button>')+'</div>').join("")||'<div class="empty">Keine Anschlüsse.</div>')+'</div>'+
+    '<button class="btn del" id="dDel" style="margin-top:22px">Gerät löschen</button><p style="color:var(--muted);font-size:13px;text-align:center">Blatt: '+esc(d.sheetname)+'</p>');
+  const sb=$("#sb");
+  sb.querySelectorAll("[data-k]").forEach(i=>i.onchange=async()=>{ await api("/api/device",{id:d.id,set:{[i.dataset.k]:i.value}}); toast("Gespeichert"); S.ver="-"; });
+  sb.querySelectorAll("#seg button").forEach(b=>b.onclick=async()=>{ await api("/api/device",{id:d.id,set:{st:b.dataset.s}}); sb.querySelectorAll("#seg button").forEach(x=>x.classList.toggle("on",x===b)); S.ver="-"; poll(); });
+  sb.querySelectorAll("[data-scan]").forEach(b=>b.onclick=()=>nat("scan",{key:b.dataset.scan}));
+  $("#dFoto").onclick=()=>photo(d.id,true);
+  $("#dShow").onclick=async()=>{ closeSheet(); if(d.sheet!==S.cur) await api("/api/sheet",{i:d.sheet}); panzoom.mem={}; go("plan"); };
+  if($("#dMove")) $("#dMove").onclick=async()=>{ closeSheet(); if(d.sheet!==S.cur) await api("/api/sheet",{i:d.sheet}); tab="plan"; document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.t==="plan"));
+    await poll(true); mode={text:d.name+": auf die neue Stelle tippen",done:async(x,y)=>{ await api("/api/move",{id:d.id,x,y}); toast("Verschoben"); await poll(true); }}; drawPlan(); };
+  $("#dDel").onclick=async()=>{ if(!confirm("Das Gerät „"+d.name+"“ mit allen seinen Kabeln löschen?")) return; await api("/api/delete",{ids:[d.id]}); closeSheet(); toast("Gelöscht - Rückgängig oben"); poll(true); };
+  sb.querySelectorAll("[data-w]").forEach(b=>b.onclick=()=>openWire(b.dataset.w));
+  sb.querySelectorAll("[data-p]").forEach(b=>b.onclick=()=>connect(d,d.ports.find(p=>p.id===b.dataset.p)));
+}
+async function connect(d,p){
+  if(!devs.length) devs=await api("/api/devices");
+  const others=devs.filter(x=>x.sheet===d.sheet&&x.id!==d.id&&!x.hide);
+  sheet("Verbinden: "+p.name,'<p style="margin:0 0 10px;color:var(--muted)">Zielgerät wählen</p><input class="search" id="cq" placeholder="Gerät suchen ..." autocomplete="off"><div id="cr" style="margin:10px -16px 0"></div>');
+  const show=()=>{ const q=$("#cq").value.toLowerCase();
+    $("#cr").innerHTML=others.filter(x=>!q||(x.name+" "+x.tag).toLowerCase().includes(q)).map(x=>'<div class="row" data-id="'+x.id+'"><div class="m"><b>'+esc((x.tag?x.tag+"  ":"")+x.name)+'</b><small>'+esc([x.mfr,x.rack].filter(Boolean).join("  |  ")||"-")+'</small></div></div>').join("")||'<div class="empty">Kein anderes Gerät auf diesem Blatt.</div>';
+    $("#cr").querySelectorAll(".row").forEach(r=>r.onclick=async()=>{ const t=await api("/api/device?id="+encodeURIComponent(r.dataset.id));
+      const fit=q=>!(q.dir===p.dir&&p.dir!=="bi")&&!(q.dir==="in"&&q.wires.length);
+      sheet(p.name+"  →  "+t.name,'<p style="margin:0 0 6px;color:var(--muted)">Anschluss am Zielgerät wählen</p>'+
+        (t.ports.filter(fit).map(q=>'<div class="port" data-q="'+q.id+'"><i class="'+q.dir+'" style="background:'+q.col+'"></i><div class="m">'+esc(q.name)+'<small>'+esc(q.sig)+(q.sig===p.sig?"":" - andere Signalart")+(q.wires.length?" - belegt":"")+'</small></div></div>').join("")||'<div class="empty">Kein passender freier Anschluss.</div>'));
+      $("#sb").querySelectorAll("[data-q]").forEach(e=>e.onclick=async()=>{ const body={a:[d.id,p.id],b:[t.id,e.dataset.q]};
+        let r=await api("/api/connect",body); if(r.ask){ if(!confirm(r.ask+"\nTrotzdem verbinden?")) return; r=await api("/api/connect",Object.assign(body,{force:true})); }
+        toast(r.msg||"Kabel gelegt"); await poll(true); openDev(d.id); }); }); };
+  $("#cq").oninput=show; show();
+}
+
+/* ---------- Kabel ---------- */
+function drawWires(){
+  view.className="";
+  const q=qw.toLowerCase(), list=wires.filter(w=>(wflt==="alle"||w.st===wflt)&&(!q||(w.nr+" "+w.sig+" "+w.a+" "+w.b+" "+w.typ).toLowerCase().includes(q)));
+  const tot=wires.reduce((a,w)=>a+w.len,0);
+  view.innerHTML='<div class="pad" style="padding-bottom:6px"><input class="search" id="q" placeholder="Nummer, Gerät, Signal, Kabeltyp ..." value="'+esc(qw)+'" autocomplete="off">'+stBar(wires)+
+    '<div class="sum" style="margin-bottom:0"><span>Kabel gesamt</span><span>'+num(tot)+' m</span></div>'+fchips(wflt,"f")+'</div>'+
+    (list.map(w=>'<div class="row" data-id="'+w.id+'"><button class="dot '+w.st+'" data-st="'+w.id+'" aria-label="Status">'+CHECK+'</button><span class="sig" style="background:'+w.col+'"></span><div class="m"><b>'+esc(w.nr+"  "+w.sig)+
+      '<span style="float:right;font-weight:400;color:var(--muted)">'+(w.len?num(w.len)+" m":"")+'</span></b><small>'+esc(w.a)+"  →  "+esc(w.b)+'</small></div></div>').join("")||
+      '<div class="empty"><b>Keine Kabel</b>'+(wires.length?"Für diesen Filter gibt es keine Treffer.":"Im Plan ist noch nichts verbunden.")+'</div>');
+  const qi=$("#q"); qi.oninput=()=>{ qw=qi.value; clearTimeout(drawWires.t); drawWires.t=setTimeout(()=>{ drawWires(); const n=$("#q"); n.focus(); n.setSelectionRange(n.value.length,n.value.length); },260); };
+  view.querySelectorAll("[data-f]").forEach(b=>b.onclick=()=>{ wflt=b.dataset.f; drawWires(); });
+  view.onclick=rowTap(wires,drawWires,openWire);
+}
+async function openWire(id){
+  if(!wires.find(w=>w.id===id)) wires=await api("/api/wires");
+  const w=wires.find(x=>x.id===id); if(!w){ toast("Das Kabel gibt es nicht mehr",true); return; }
+  sheet(w.nr+"  "+w.sig,'<div class="seg" id="seg">'+S.status.map(s=>'<button class="'+s+(w.st===s?" on":"")+'" data-s="'+s+'">'+s[0].toUpperCase()+s.slice(1)+'</button>').join("")+'</div>'+
+    '<div class="card" style="margin-top:12px"><div class="row" data-d="'+w.da+'"><span class="sig" style="background:'+w.col+'"></span><div class="m"><small>von</small><b>'+esc(w.a)+'</b></div></div><div class="row" data-d="'+w.db+'"><span class="sig" style="background:'+w.col+'"></span><div class="m"><small>nach</small><b>'+esc(w.b)+'</b></div></div></div>'+
+    '<h2>Angaben</h2><div class="f"><label>Kabeltyp</label><input data-k="typ" value="'+esc(w.typ)+'" autocomplete="off"><label>Länge m</label><input data-k="len" inputmode="decimal" value="'+(w.len?num(w.len):"")+'">'+
+    '<label>Bemerkung</label><textarea data-k="note">'+esc(w.note)+'</textarea></div><button class="btn del" id="wDel" style="margin-top:22px">Kabel entfernen</button>');
+  const sb=$("#sb");
+  sb.querySelectorAll("[data-k]").forEach(i=>i.onchange=async()=>{ await api("/api/wire",{id,set:{[i.dataset.k]:i.value}}); toast("Gespeichert"); S.ver="-"; });
+  sb.querySelectorAll("#seg button").forEach(b=>b.onclick=async()=>{ await api("/api/wire",{id,set:{st:b.dataset.s}}); w.st=b.dataset.s; sb.querySelectorAll("#seg button").forEach(x=>x.classList.toggle("on",x===b)); S.ver="-"; poll(); });
+  sb.querySelectorAll("[data-d]").forEach(r=>r.onclick=()=>r.dataset.d&&openDev(r.dataset.d));
+  $("#wDel").onclick=async()=>{ if(!confirm("Das Kabel "+w.nr+" entfernen?")) return; await api("/api/delete",{ids:[id]}); closeSheet(); toast("Entfernt - Rückgängig oben"); poll(true); };
+}
+
+/* ---------- Rack ---------- */
+async function drawRack(){
+  view.className="fix"; view.onclick=null;
+  if(!S.racks.length){ view.className=""; view.innerHTML='<div class="empty"><b>Noch kein Rack</b>Ein Gerät bekommt ein Rack, wenn bei ihm ein Rack-Name und Höheneinheiten eingetragen sind.</div>'; return; }
+  if(!S.racks.includes(rackSel)) rackSel=S.racks[0];
+  view.innerHTML='<div class="chips" style="position:absolute;left:0;right:0;top:0;z-index:2">'+S.racks.map(n=>'<button class="chip'+(n===rackSel?" on":"")+'" data-r="'+esc(n)+'">'+esc(n)+'</button>').join("")+
+    '<button class="chip" id="rSide" style="margin-left:auto">'+(rackSide==="front"?"Rückseite zeigen":"Vorderseite zeigen")+'</button><button class="chip" id="rInfo">Daten</button></div><div id="pz"><img alt="" data-k="rack'+esc(rackSel)+rackSide+'"></div>';
+  const img=view.querySelector("img"); panzoom($("#pz"),img,null);
+  img.src=src("/rack.png?name="+encodeURIComponent(rackSel)+"&side="+rackSide+"&v="+S.ver);
+  view.querySelectorAll("[data-r]").forEach(b=>b.onclick=()=>{ rackSel=b.dataset.r; drawRack(); });
+  $("#rSide").onclick=()=>{ rackSide=rackSide==="front"?"rear":"front"; drawRack(); };
+  $("#rInfo").onclick=async()=>{ const r=(await api("/api/racks")).find(x=>x.name===rackSel);
+    sheet("Daten: "+rackSel,'<div class="tiles">'+r.facts.map(f=>'<div class="tile"><b'+(f[2]?' class="bad"':"")+'>'+esc(f[1])+'</b><small>'+esc(f[0])+'</small></div>').join("")+'</div>'); };
+}
+
+/* ---------- Mehr ---------- */
+function drawMore(){
+  view.className=""; view.onclick=null;
+  if(sub==="list"){ drawList(); return; }
+  if(sub==="files"){ drawFiles(); return; }
+  const r=S.raum, n=S.total||1;
+  view.innerHTML='<div class="pad"><h2 style="margin-top:4px">Kennzahlen</h2><div class="tiles">'+S.kpi.map(t=>'<div class="tile"><b>'+esc(t[0])+(t[2]?' <span style="font-size:13px;font-weight:400;color:var(--muted)">'+esc(t[2])+'</span>':"")+'</b><small>'+esc(t[1])+'</small></div>').join("")+'</div>'+
+    '<div class="sum"><span>Montage</span><span>'+S.mont+' montiert, '+S.ok+' geprüft von '+S.total+'</span></div><div class="bar"><i style="width:'+100*S.ok/n+'%;background:var(--ok)"></i><i style="width:'+100*S.mont/n+'%;background:var(--warn)"></i></div>'+
+    '<h2>Aufmaß: Raumgröße und Kabellängen</h2><div class="f"><label>Länge m</label><input id="rl" inputmode="decimal" value="'+(r.l?num(r.l,2):"")+'"><label>Breite m</label><input id="rb" inputmode="decimal" value="'+(r.b?num(r.b,2):"")+'">'+
+      '<label>Höhe m</label><input id="rh" inputmode="decimal" value="'+(r.h?num(r.h,2):"")+'"><label>Kabelweg</label><select id="rw">'+S.weg.map(w=>'<option value="'+w[0]+'"'+(w[0]===r.weg?" selected":"")+'>'+esc(w[1])+'</option>').join("")+'</select>'+
+      '<label>Zuschlag %</label><input id="rp" inputmode="numeric" value="'+r.pct+'"><label>Reserve je Ende m</label><input id="rr" inputmode="decimal" value="'+num(r.res)+'"></div>'+
+    '<div class="btns" style="margin-top:10px"><button class="btn" id="rSave">Raum speichern</button><button class="btn pri" id="rCalc">Kabellängen berechnen</button></div>'+
+    '<h2>Fotos und Notizen</h2><div class="btns"><button class="btn" id="mFoto">Foto vom Raum</button><button class="btn" id="mNote">Notiz schreiben</button></div>'+
+    '<h2>Listen</h2><div class="card">'+S.lists.map(l=>'<div class="row" data-l="'+l[0]+'"><div class="m"><b>'+esc(l[1])+'</b></div><span style="color:var(--muted)">›</span></div>').join("")+'</div>'+
+    '<h2>Projekt</h2><div class="card"><div class="row" id="mFiles"><div class="m"><b>Dateien im Projektordner</b><small>PDFs, Fotos, Notizen ansehen</small></div><span style="color:var(--muted)">›</span></div>'+
+      '<div class="row" data-x="pdf"><div class="m"><b>PDF erzeugen</b><small>Plan, Rack und Listen</small></div></div><div class="row" data-x="mappe"><div class="m"><b>Dokumentation als Mappe erzeugen</b><small>mit Deckblatt</small></div></div>'+
+      '<div class="row" data-x="xlsx"><div class="m"><b>Excel-Mappe erzeugen</b><small>alle Listen</small></div></div></div>'+
+    (NAT?'<h2>iPhone-App</h2><div class="card">'+(OFF?"":'<div class="row" id="nSync"><div class="m"><b>Stand für unterwegs sichern</b><small>zum Ansehen ohne Verbindung zum PC</small></div></div>')+
+      '<div class="row" id="nSet"><div class="m"><b>App, Verbindung und Update</b><small>Adresse des PCs, Version der App</small></div><span style="color:var(--muted)">\u203a</span></div></div>':"")+
+    '<p style="color:var(--muted);font-size:13px;text-align:center;margin-top:22px">'+esc(S.app+" "+S.version)+(OFF?" - ohne PC":"")+'</p></div>';
+  if($("#nSync")) $("#nSync").onclick=()=>{ toast("Stand wird gesichert ..."); nat("sync"); };
+  if($("#nSet")) $("#nSet").onclick=()=>nat("settings");
+  const val=id=>parseFloat(String($("#"+id).value).replace(",","."))||0;
+  const raum=calc=>api("/api/raum",{l:val("rl"),b:val("rb"),h:val("rh"),weg:$("#rw").value,pct:val("rp"),res:val("rr"),calc});
+  $("#rSave").onclick=async()=>{ await raum(null); toast("Raum gespeichert"); S.ver="-"; };
+  $("#rCalc").onclick=async()=>{ if(!val("rl")||!val("rb")){ toast("Bitte Länge und Breite eintragen",true); return; }
+    const all=confirm("Auch Kabel überschreiben, die schon eine Länge haben?\n\nAbbrechen = nur Kabel ohne Länge."); const r=await raum(all?"all":"new"); toast((r.n||0)+" Kabellängen berechnet"); poll(true); };
+  $("#mFoto").onclick=()=>photo("",false);
+  $("#mNote").onclick=note;
+  $("#mFiles").onclick=()=>{ sub="files"; drawMore(); };
+  view.querySelectorAll("[data-l]").forEach(e=>e.onclick=()=>{ sub="list"; drawList.key=e.dataset.l; drawMore(); });
+  view.querySelectorAll("[data-x]").forEach(e=>e.onclick=async()=>{ toast("Wird erzeugt ..."); const r=await api("/api/export",{kind:e.dataset.x}); toast(r.msg); window.open(src("/file?p="+encodeURIComponent(r.p)),"_blank"); });
+}
+const back='<button class="chip" id="bk">‹ Zurück</button>';
+async function drawList(){
+  const key=drawList.key, title=(S.lists.find(l=>l[0]===key)||["",""])[1];
+  view.innerHTML='<div class="chips">'+back+'<span style="align-self:center;font-weight:600">'+esc(title)+'</span></div><div style="overflow:auto" id="lt"></div>';
+  $("#bk").onclick=()=>{ sub=null; drawMore(); };
+  const r=await api("/api/list?key="+key);
+  $("#lt").innerHTML=r.rows.length?'<table class="t"><tr>'+r.heads.map(h=>'<th>'+esc(h)+'</th>').join("")+'</tr>'+r.rows.map(x=>'<tr data-id="'+esc(x[0])+'">'+x.slice(1).map(v=>'<td>'+esc(v)+'</td>').join("")+'</tr>').join("")+'</table>':'<div class="empty">Die Liste ist leer.</div>';
+  $("#lt").querySelectorAll("tr[data-id]").forEach(t=>t.onclick=async()=>{ const id=t.dataset.id; if(!id||id==="null") return;
+    if(!devs.length) devs=await api("/api/devices"); if(devs.find(d=>d.id===id)) openDev(id); else openWire(id); });
+}
+async function drawFiles(){
+  view.innerHTML='<div class="chips">'+back+'<span style="align-self:center;font-weight:600">Projektordner</span></div><div id="fl"></div>';
+  $("#bk").onclick=()=>{ sub=null; drawMore(); };
+  const r=await api("/api/files"), kb=n=>n>1048576?num(n/1048576)+" MB":Math.max(1,Math.round(n/1024))+" KB";
+  $("#fl").innerHTML=r.files.map(f=>'<a class="row" style="text-decoration:none;color:inherit" target="_blank" href="'+src("/file?p="+encodeURIComponent(f.p))+'"><div class="m"><b>'+esc(f.p.split("/").pop())+'</b><small>'+esc((f.p.includes("/")?f.p.slice(0,f.p.lastIndexOf("/"))+"  |  ":"")+kb(f.size))+'</small></div></a>').join("")||
+    '<div class="empty"><b>Noch keine Dateien</b>'+(S.proj?"Im Projektordner liegt noch nichts.":"Die Planung liegt noch nicht in einem Projektordner. Am PC einmal mit Speichern unter sichern.")+'</div>';
+}
+function note(){
+  sheet("Notiz",'<div class="f" style="grid-template-columns:1fr"><textarea id="nt" style="min-height:130px" placeholder="Was vor Ort auffällt ..."></textarea></div><button class="btn pri" id="ns">Notiz speichern</button><h2>Bisher</h2><pre id="nl" style="white-space:pre-wrap;font:inherit;color:var(--muted);font-size:14px;margin:0"></pre>');
+  api("/api/notes").then(r=>$("#nl").textContent=r.text||"Noch keine Notizen.");
+  $("#ns").onclick=async()=>{ const r=await api("/api/note",{text:$("#nt").value}); toast(r.msg); closeSheet(); };
+}
+function photo(dev,ask){
+  const cam=$("#cam"); cam.value="";
+  cam.onchange=()=>{ const f=cam.files[0]; if(!f) return; const im=new Image();
+    im.onload=()=>{ const k=Math.min(1,2200/Math.max(im.width,im.height)), c=document.createElement("canvas"); c.width=Math.round(im.width*k); c.height=Math.round(im.height*k);
+      c.getContext("2d").drawImage(im,0,0,c.width,c.height); URL.revokeObjectURL(im.src);
+      c.toBlob(async b=>{ const pic=ask&&confirm("Das Foto auch als Bild des Geräts verwenden?\n\nAbbrechen = nur im Projektordner ablegen.")?"1":"0";
+        toast("Foto wird übertragen ..."); const r=await api("/api/photo?dev="+encodeURIComponent(dev)+"&pic="+pic,b,true); toast(r.msg); if(pic==="1"&&dev) openDev(dev); },"image/jpeg",.86); };
+    im.onerror=()=>toast("Das Bild ließ sich nicht lesen",true);
+    im.src=URL.createObjectURL(f); };
+  cam.click();
+}
+
+/* ---------- Antworten der iPhone-App ---------- */
+window.paScan=(key,text)=>{ text=String(text||"").trim(); if(!text) return;
+  if(key==="find"){ qd=text; flt="alle"; const c=text.toLowerCase().replace(/[^0-9a-z]/g,"");
+    const hit=devs.filter(d=>!d.hide&&(d.sn.toLowerCase()===text.toLowerCase()||d.tag.toLowerCase()===text.toLowerCase()||(c.length===12&&d.mac.toLowerCase().replace(/[^0-9a-z,]/g,"").split(",").includes(c))));
+    if(tab==="devs") drawDevs(); if(hit.length===1) openDev(hit[0].id); else toast(hit.length?hit.length+" Geräte passen":"Kein Gerät mit diesem Code - Suche gefüllt"); return; }
+  const i=document.querySelector('#sb [data-k="'+key+'"]'); if(!i) return;
+  i.value=(key==="mac"&&i.value.trim())?i.value.trim()+", "+text:text; i.onchange(); };
+window.paToast=(t,bad)=>toast(t,!!bad);
+
+/* ---------- Blatt von unten ---------- */
+function sheet(title,html){ $("#sh").textContent=title; $("#sb").innerHTML=html; $("#sb").scrollTop=0; $("#sheet").classList.add("on"); $("#shade").classList.add("on"); }
+function closeSheet(){ if(document.activeElement) document.activeElement.blur(); $("#sheet").classList.remove("on"); $("#shade").classList.remove("on"); }
+$("#shx").onclick=closeSheet; $("#shade").onclick=closeSheet;
+document.querySelectorAll("#tabs button").forEach(b=>b.onclick=()=>go(b.dataset.t));
+$("#bUndo").onclick=async()=>{ await api("/api/undo",{}); toast("Rückgängig"); poll(true); };
+$("#bRedo").onclick=async()=>{ await api("/api/redo",{}); toast("Wiederholt"); poll(true); };
+$("#bSave").onclick=async()=>{ const r=await api("/api/save",{}); toast(r.msg); poll(); };
+document.addEventListener("gesturestart",e=>e.preventDefault());
+if(!K&&!OFF){ view.innerHTML='<div class="empty"><b>Schlüssel fehlt</b>Bitte am PC in PA Schematic das Fenster Handy-App öffnen und den QR-Code scannen.</div>'; $("#t2").textContent=""; }
+else { const t0=new URLSearchParams(location.search).get("t"); if(["devs","wires","rack","more"].includes(t0)) tab=t0;
+  document.querySelector('#tabs button[data-t="'+tab+'"]').classList.add("on"); poll(true); if(!OFF) setInterval(()=>poll(),3000); }
+</script>
+</body>
+</html>
