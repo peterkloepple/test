@@ -3,7 +3,7 @@
 #  Autor: T. Pfeiffer
 #  Baut die App fuer den iPhone-Simulator, startet einen Nachbau des Programms am PC
 #  (tests/mock_pc.py) und fotografiert die Seiten aus tests/fotos.txt.
-#  Die Bilder liegen danach als Artefakt "fotos" am Lauf.
+#  Die Bilder landen im Branch paschematic-ios-shots.
 # ===========================================================================
 name: PA-Schematic-App Fotos
 
@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   fotos:
@@ -74,10 +74,29 @@ jobs:
           mkdir -p shots/_crash
           cp ~/Library/Logs/DiagnosticReports/PASchematic* shots/_crash/ 2>/dev/null || true
           ls shots/_crash | head
-      - name: Fotos bereitstellen
+      - name: Fotos in Branch paschematic-ios-shots ablegen
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: fotos
-          path: shots
-          retention-days: 14
+        run: |
+          URL="https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          OK=0
+          for TRY in 1 2 3 4; do
+            rm -rf out
+            if git clone -q --depth 1 -b paschematic-ios-shots "$URL" out; then
+              :
+            elif git ls-remote --exit-code --heads "$URL" paschematic-ios-shots >/dev/null 2>&1; then
+              echo "Klonen fehlgeschlagen (Versuch $TRY)"; sleep 15; continue
+            else
+              mkdir out; (cd out; git init -q -b paschematic-ios-shots; git remote add origin "$URL")
+            fi
+            rm -rf out/_crash
+            cp -R shots/. out/
+            cd out
+            git config user.name "T. Pfeiffer"
+            git config user.email "noreply@github.com"
+            git add -A
+            git commit -q -m "Fotos ${GITHUB_SHA::7}" || echo "nichts neu"
+            if git push -q origin paschematic-ios-shots; then OK=1; cd ..; break; fi
+            cd ..
+            echo "Push fehlgeschlagen (Versuch $TRY)"; sleep 15
+          done
+          [ "$OK" = "1" ]
